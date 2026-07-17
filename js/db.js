@@ -1,6 +1,6 @@
 let db;
 
-const req = indexedDB.open('BirdsAuditMobile_v1', 1);
+const req = indexedDB.open('BirdsAuditMobile_v2', 2);
 req.onupgradeneeded = e => {
   const d = e.target.result;
   if (!d.objectStoreNames.contains('audits')) d.createObjectStore('audits', { keyPath: ['Store', 'Year', 'Week'] });
@@ -8,6 +8,7 @@ req.onupgradeneeded = e => {
   if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings', { keyPath: 'id' });
   if (!d.objectStoreNames.contains('questionBank')) d.createObjectStore('questionBank', { keyPath: 'id' });
   if (!d.objectStoreNames.contains('history')) d.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
+  if (!d.objectStoreNames.contains('training_audits')) d.createObjectStore('training_audits', { keyPath: ['Store', 'Year', 'Week'] });
 };
 req.onsuccess = e => {
   db = e.target.result;

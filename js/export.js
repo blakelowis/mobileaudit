@@ -13,6 +13,8 @@ async function exportAndDownload() {
 
   var actionItems = auditGetActions();
 
+  var isTraining = auditState.isTraining || false;
+
   var sessionData = {
     version: '1.0',
     exportDate: new Date().toISOString(),
@@ -27,7 +29,7 @@ async function exportAndDownload() {
       year: year,
       week: week,
       summary: auditState.summary || '',
-      isTraining: auditState.isTraining || false
+      isTraining: isTraining
     },
     scores: {
       overall: metrics.pct,
@@ -76,6 +78,21 @@ async function exportAndDownload() {
   var zip = new JSZip();
   var safeStore = auditState.storeName.replace(/[^a-zA-Z0-9]/g, '_');
   var folderName = safeStore + '_' + auditState.date;
+
+  zip.file('meta.json', JSON.stringify({
+    version: '1.0',
+    isTraining: isTraining,
+    storeName: auditState.storeName,
+    storeEmail: auditState.email || '',
+    auditor: auditState.auditor,
+    manager: auditState.manager,
+    areaManager: auditState.areaManager,
+    date: auditState.date,
+    year: year,
+    week: week,
+    summary: auditState.summary || '',
+    score: metrics.pct
+  }, null, 2));
 
   zip.file('audit_session.json', JSON.stringify(sessionData, null, 2));
   zip.file('actions.json', JSON.stringify(sessionData.actions, null, 2));
@@ -160,9 +177,12 @@ async function generateAuditPDFBlob() {
   var doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   var W = 210, H = 297, M = 15, CW = W - 2 * M;
   var y = M;
+  var isTraining = auditState.isTraining || false;
 
   function checkPage(needed) { if (y + needed > H - M) { doc.addPage(); y = M; } }
 
+  // === PAGE 1: Cover & Scorecard ===
+  // Green header band
   doc.setFillColor(0, 168, 142);
   doc.rect(0, 0, W, 32, 'F');
   doc.setTextColor(255, 255, 255);
@@ -171,45 +191,73 @@ async function generateAuditPDFBlob() {
   doc.text('Retail Audit Report', M, 14);
   doc.setFontSize(10);
   doc.setFont(undefined, 'normal');
-  var storeLabel = auditState.storeName + (auditState.isTraining ? ' [TRAINING]' : '');
+  var storeLabel = auditState.storeName + (isTraining ? ' [TRAINING]' : '');
   doc.text(storeLabel + ' \u2014 ' + auditState.date, M, 22);
   y = 40;
 
+  // Metadata grid
   doc.setTextColor(60, 60, 60);
   doc.setFontSize(9);
-  var labels = ['Store', 'Area Manager', 'Manager', 'Auditor'];
-  var values = [storeLabel, auditState.areaManager, auditState.manager, auditState.auditor];
+  var metaLabels = ['Store', 'Area Manager', 'Manager', 'Auditor'];
+  var metaValues = [storeLabel, auditState.areaManager, auditState.manager, auditState.auditor];
   for (var i = 0; i < 4; i++) {
     var col = i % 2, row = Math.floor(i / 2);
     var ix = M + col * (CW / 2), iy = y + row * 12;
-    doc.setFont(undefined, 'bold'); doc.text(labels[i] + ':', ix, iy);
-    doc.setFont(undefined, 'normal'); doc.text(values[i] || '\u2014', ix + 25, iy);
+    doc.setDrawColor(220, 220, 220);
+    doc.roundedRect(ix - 1, iy - 6, CW / 2 - 4, 10, 1, 1, 'S');
+    doc.setFont(undefined, 'bold'); doc.setFontSize(7);
+    doc.setTextColor(130, 130, 130);
+    doc.text(metaLabels[i], ix + 2, iy - 2);
+    doc.setFontSize(9); doc.setTextColor(40, 40, 40);
+    doc.text(metaValues[i] || '\u2014', ix + 2, iy + 3);
   }
   y += 30;
 
+  // Audit summary
   if (auditState.summary) {
     checkPage(15);
-    doc.setFont(undefined, 'italic'); doc.setFontSize(9);
-    doc.text('Summary: ' + auditState.summary, M, y); y += 10;
+    doc.setFillColor(240, 253, 250);
+    doc.roundedRect(M, y, CW, 14, 2, 2, 'F');
+    doc.setFontSize(8); doc.setFont(undefined, 'bold'); doc.setTextColor(0, 140, 120);
+    doc.text('Audit Summary', M + 4, y + 5);
+    doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.setTextColor(60, 60, 60);
+    var lines = doc.splitTextToSize(auditState.summary, CW - 10);
+    doc.text(lines, M + 4, y + 11);
+    y += 14 + lines.length * 4;
   }
 
+  // Scorecard
   var overall = auditOverallMetrics();
   checkPage(35);
   doc.setFillColor(240, 253, 250);
-  doc.roundedRect(M, y, CW, 25, 3, 3, 'F');
-  doc.setFontSize(28); doc.setFont(undefined, 'bold');
+  doc.roundedRect(M, y, CW, 28, 3, 3, 'F');
+  doc.setFontSize(32); doc.setFont(undefined, 'bold');
   doc.setTextColor(0, 168, 142);
-  doc.text(overall.pct + '%', M + 5, y + 17);
-  doc.setFontSize(9); doc.setTextColor(100, 100, 100);
-  doc.text('Overall Score (' + overall.totalMax + ' max points)', M + 50, y + 10);
+  doc.text(overall.pct + '%', M + 8, y + 20);
+  doc.setFontSize(10); doc.setTextColor(100, 100, 100);
+  doc.text('Overall Score', M + 55, y + 12);
+  doc.setFontSize(8);
+  doc.text(overall.totalMax + ' max points', M + 55, y + 17);
   if (overall.totalCritical > 0) {
     doc.setTextColor(200, 50, 50);
-    doc.text(overall.totalCritical + ' critical items \u2014 penalty: -' + overall.totalPenalty + '%', M + 50, y + 18);
+    doc.setFont(undefined, 'bold');
+    doc.text(overall.totalCritical + ' critical items \u2014 penalty: -' + overall.totalPenalty + '%', M + 55, y + 23);
   }
-  y += 32;
+  y += 35;
 
-  checkPage(20);
-  var secW = CW / 6 - 2;
+  // Score band label
+  var bandLabel = overall.pct >= 95 ? 'Excellent' : overall.pct >= 90 ? 'Good Work' : overall.pct >= 80 ? 'Pass' : 'Action Needed';
+  doc.setFontSize(10); doc.setFont(undefined, 'bold');
+  var bandColor = overall.pct >= 95 ? [16, 185, 129] : overall.pct >= 90 ? [34, 197, 94] : overall.pct >= 80 ? [245, 158, 11] : [239, 68, 68];
+  doc.setTextColor(bandColor[0], bandColor[1], bandColor[2]);
+  doc.text('Score Band: ' + bandLabel, M, y);
+  y += 10;
+
+  // Sector score cards
+  checkPage(30);
+  doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(40, 40, 40);
+  doc.text('Sector Scores', M, y); y += 6;
+  var secW = (CW - 4 * 2) / 6;
   overall.sectorData.forEach(function(s, idx) {
     var sx = M + idx * (secW + 2);
     var rag = s.metrics.failed ? [255, 200, 200] : s.metrics.penalisedPct >= 95 ? [209, 250, 229] : s.metrics.penalisedPct >= 90 ? [220, 252, 231] : s.metrics.penalisedPct >= 80 ? [254, 243, 199] : [254, 226, 226];
@@ -219,64 +267,155 @@ async function generateAuditPDFBlob() {
     doc.text(s.metrics.penalisedPct + '%', sx + secW / 2, y + 8, { align: 'center' });
     doc.setFontSize(6); doc.setFont(undefined, 'normal');
     doc.text(s.title, sx + secW / 2, y + 14, { align: 'center' });
+    if (s.metrics.failed) {
+      doc.setFontSize(5); doc.setFont(undefined, 'bold'); doc.setTextColor(200, 50, 50);
+      doc.text('FAILED', sx + secW / 2, y + 17, { align: 'center' });
+    }
   });
   y += 25;
 
+  // === PAGE 2: Action Plan ===
+  doc.addPage(); y = M;
+  doc.setFillColor(0, 168, 142);
+  doc.rect(0, 0, W, 18, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14); doc.setFont(undefined, 'bold');
+  doc.text('Action Plan', M, 12);
+  y = 26;
+
   var actions = auditGetActions();
   if (actions.length > 0) {
-    checkPage(15);
-    doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(40, 40, 40);
-    doc.text('Action Items (' + actions.length + ')', M, y); y += 6;
     for (var ai = 0; ai < actions.length; ai++) {
       var item = actions[ai];
-      checkPage(20);
+      checkPage(35);
       doc.setFillColor(255, 251, 235);
-      doc.roundedRect(M, y, CW, 18, 2, 2, 'F');
-      doc.setFontSize(8); doc.setFont(undefined, 'bold'); doc.setTextColor(60, 60, 60);
-      var critTag = item.action.critical ? ' [CRITICAL]' : '';
-      doc.text(item.sector + ' > ' + item.category + critTag, M + 3, y + 5);
-      doc.setFont(undefined, 'normal'); doc.setFontSize(7);
-      doc.text(item.action.description || item.question, M + 3, y + 11);
-      doc.text('Responsible: ' + (item.action.person || '\u2014') + '  |  Status: ' + (item.action.status || 'Open'), M + 3, y + 15);
-      y += 20;
+      doc.roundedRect(M, y, CW, 28, 2, 2, 'F');
+      if (item.action.critical) {
+        doc.setFillColor(254, 226, 226);
+        doc.roundedRect(M, y, 4, 28, 1, 1, 'F');
+      }
+      doc.setFontSize(7); doc.setFont(undefined, 'bold'); doc.setTextColor(40, 40, 40);
+      doc.text(item.sector + ' \u2014 ' + item.category, M + 7, y + 5);
+      if (item.action.critical) {
+        doc.setTextColor(200, 50, 50);
+        doc.text(' [CRITICAL]', M + 7 + doc.getTextWidth(item.sector + ' \u2014 ' + item.category), y + 5);
+      }
+      doc.setFontSize(7); doc.setFont(undefined, 'normal'); doc.setTextColor(60, 60, 60);
+      var descLines = doc.splitTextToSize(item.action.description || item.question, CW - 14);
+      doc.text(descLines, M + 7, y + 11);
+      doc.setFontSize(7); doc.setTextColor(100, 100, 100);
+      doc.text('Responsible: ' + (item.action.person || '\u2014') + '  |  Status: ' + (item.action.status || 'Open'), M + 7, y + 22);
+      y += 30;
     }
+  } else {
+    doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(130, 130, 130);
+    doc.text('No action items recorded.', M, y);
+    y += 10;
   }
 
-  checkPage(15);
-  doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(40, 40, 40);
-  doc.text('All Questions', M, y); y += 4;
-
-  var tableRows = [];
+  // === PAGE 3: Comments & Notes ===
+  var comments = [];
   auditSectorKeys().forEach(function(sid) {
     var sec = auditState.sectors[sid];
     sec.categories.forEach(function(cat) {
       cat.questions.forEach(function(q) {
-        if (q.answer) {
-          var icon = q.answer === 'Pass' ? '\u2713' : q.answer === 'Fail' ? '\u2717' : '\u2014';
-          tableRows.push([sec.title, cat.name, q.text.substring(0, 60), icon, q.weight + '']);
+        if (q.comment || q.photo || q.extraPhoto || q.extraPhoto2) {
+          comments.push({ sector: sec.title, category: cat.name, question: q.text, comment: q.comment, photos: [q.photo, q.extraPhoto, q.extraPhoto2].filter(Boolean) });
+        }
+      });
+    });
+  });
+  if (comments.length > 0) {
+    doc.addPage(); y = M;
+    doc.setFillColor(0, 168, 142);
+    doc.rect(0, 0, W, 18, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14); doc.setFont(undefined, 'bold');
+    doc.text('Comments & Notes', M, 12);
+    y = 26;
+
+    comments.forEach(function(c) {
+      checkPage(30);
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(M, y, CW, 22, 2, 2, 'F');
+      doc.setFontSize(7); doc.setFont(undefined, 'bold'); doc.setTextColor(0, 140, 120);
+      doc.text(c.sector + ' > ' + c.category, M + 4, y + 5);
+      doc.setFontSize(7); doc.setFont(undefined, 'normal'); doc.setTextColor(60, 60, 60);
+      doc.text(c.question.substring(0, 80), M + 4, y + 10);
+      if (c.comment) {
+        doc.setFontSize(7); doc.setTextColor(80, 80, 80);
+        var commentLines = doc.splitTextToSize(c.comment, CW - 10);
+        doc.text(commentLines, M + 4, y + 15);
+        y += 4 + commentLines.length * 3;
+      }
+      y += 4;
+    });
+  }
+
+  // === PAGE 4+: All Answered Questions ===
+  doc.addPage(); y = M;
+  doc.setFillColor(0, 168, 142);
+  doc.rect(0, 0, W, 18, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14); doc.setFont(undefined, 'bold');
+  doc.text('All Answered Questions', M, 12);
+  y = 26;
+
+  var compliantRows = [];
+  var nonCompliantRows = [];
+  auditSectorKeys().forEach(function(sid) {
+    var sec = auditState.sectors[sid];
+    sec.categories.forEach(function(cat) {
+      cat.questions.forEach(function(q) {
+        if (q.answer === 'Pass' || q.answer === 'NA') {
+          compliantRows.push([sec.title, cat.name, q.text.substring(0, 65), q.answer, q.weight + '']);
+        } else if (q.answer === 'Fail') {
+          nonCompliantRows.push([sec.title, cat.name, q.text.substring(0, 65), q.answer, q.weight + '']);
         }
       });
     });
   });
 
-  if (tableRows.length > 0) {
+  if (compliantRows.length > 0) {
+    checkPage(15);
+    doc.setFontSize(9); doc.setFont(undefined, 'bold'); doc.setTextColor(16, 185, 129);
+    doc.text('Compliant (' + compliantRows.length + ')', M, y); y += 4;
     doc.autoTable({
       startY: y,
       head: [['Sector', 'Category', 'Question', 'Answer', 'Wt']],
-      body: tableRows,
+      body: compliantRows,
       styles: { fontSize: 7, cellPadding: 1.5 },
-      headStyles: { fillColor: [0, 168, 142], fontSize: 7, fontStyle: 'bold' },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
+      headStyles: { fillColor: [16, 185, 129], fontSize: 7, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [240, 253, 250] },
       margin: { left: M, right: M },
-      columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 30 }, 2: { cellWidth: 75 }, 3: { cellWidth: 12, halign: 'center' }, 4: { cellWidth: 10, halign: 'center' } }
+      columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 28 }, 2: { cellWidth: 75 }, 3: { cellWidth: 12, halign: 'center' }, 4: { cellWidth: 10, halign: 'center' } }
     });
+    y = doc.lastAutoTable.finalY + 8;
   }
 
+  if (nonCompliantRows.length > 0) {
+    checkPage(15);
+    doc.setFontSize(9); doc.setFont(undefined, 'bold'); doc.setTextColor(200, 50, 50);
+    doc.text('Non-Compliant (' + nonCompliantRows.length + ')', M, y); y += 4;
+    doc.autoTable({
+      startY: y,
+      head: [['Sector', 'Category', 'Question', 'Answer', 'Wt']],
+      body: nonCompliantRows,
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [200, 50, 50], fontSize: 7, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [254, 242, 242] },
+      margin: { left: M, right: M },
+      columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 28 }, 2: { cellWidth: 75 }, 3: { cellWidth: 12, halign: 'center' }, 4: { cellWidth: 10, halign: 'center' } }
+    });
+    y = doc.lastAutoTable.finalY + 8;
+  }
+
+  // Footer on all pages
   var pageCount = doc.internal.getNumberOfPages();
   for (var p = 1; p <= pageCount; p++) {
     doc.setPage(p);
     doc.setFontSize(7); doc.setTextColor(150, 150, 150);
-    doc.text('Birds Bakery \u2014 Retail Audit Report \u2014 Generated ' + new Date().toLocaleString('en-GB'), M, H - 8);
+    doc.text('Birds Bakery \u2014 Retail Audit Report' + (isTraining ? ' [TRAINING]' : '') + ' \u2014 Generated ' + new Date().toLocaleString('en-GB'), M, H - 8);
     doc.text('Page ' + p + ' of ' + pageCount, W - M, H - 8, { align: 'right' });
   }
 
@@ -284,15 +423,24 @@ async function generateAuditPDFBlob() {
 }
 
 async function saveToHistory(sessionData) {
-  if (auditState && auditState.isTraining) return;
+  if (!auditState) return;
   var m = sessionData.metadata || auditState;
   var s = sessionData.scores || auditOverallMetrics();
-  await idbAdd('history', {
+  var isTraining = auditState.isTraining || false;
+
+  var historyEntry = {
     store: m.storeName || auditState.storeName,
     auditor: m.auditor || auditState.auditor,
     date: m.date || auditState.date,
     score: typeof s.overall === 'number' ? s.overall : (s.pct || null),
     areaManager: m.areaManager || auditState.areaManager,
-    exportedAt: new Date().toISOString()
-  });
+    exportedAt: new Date().toISOString(),
+    isTraining: isTraining
+  };
+
+  if (!isTraining) {
+    await idbAdd('history', historyEntry);
+  } else {
+    await idbAdd('training_audits', historyEntry);
+  }
 }

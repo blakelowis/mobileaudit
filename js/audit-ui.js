@@ -1,5 +1,7 @@
 // === AUDIT UI — Mobile-first render functions ===
 
+var _expandedCategories = {};
+
 function renderHome() {
   var main = document.getElementById('mainView');
   main.innerHTML = `
@@ -23,18 +25,43 @@ async function loadAuditHistory() {
   var el = document.getElementById('auditHistory');
   if (!el) return;
   var rows = await idbGetAll('history');
-  if (!rows.length) { el.innerHTML = ''; return; }
-  rows.sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); });
-  var cards = rows.slice(0, 20).map(function(r) {
+  var trainingRows = await idbGetAll('training_audits');
+  var allRows = rows.concat(trainingRows.map(function(r) { r._isTraining = true; return r; }));
+  if (!allRows.length) { el.innerHTML = ''; return; }
+  allRows.sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); });
+  var cards = allRows.slice(0, 20).map(function(r) {
     var rag = r.score >= 95 ? 'text-emerald-600' : r.score >= 90 ? 'text-green-600' : r.score >= 80 ? 'text-amber-600' : 'text-red-600';
+    var trainingBadge = r._isTraining || r.isTraining ? ' <span class="bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">Training</span>' : '';
     return '<div class="bg-white rounded-xl border border-slate-200 p-4 mb-3 flex items-center justify-between">' +
-      '<div><div class="font-black text-slate-800 text-sm">' + escapeHtml(r.store) + '</div>' +
+      '<div><div class="font-black text-slate-800 text-sm">' + escapeHtml(r.store) + trainingBadge + '</div>' +
       '<div class="text-xs text-slate-400 font-bold">' + escapeHtml(r.date) + ' &bull; ' + escapeHtml(r.auditor) + '</div></div>' +
       '<div class="text-2xl font-black ' + rag + '">' + (r.score != null ? r.score + '%' : '—') + '</div></div>';
   }).join('');
   el.innerHTML = '<h3 class="font-black text-slate-800 text-sm uppercase tracking-widest text-slate-400 mb-3">Recent Audits</h3>' + cards;
 }
 
+// === BREADCRUMBS ===
+function renderCrumbs() {
+  var html = '<div class="flex items-center gap-1.5 mb-4 text-xs font-bold overflow-x-auto whitespace-nowrap pb-1">';
+  if (auditState.view === 'sectors' || auditState.view === 'meta') {
+    html += '<span class="text-slate-800">Sectors</span>';
+  } else if (auditState.view === 'categories') {
+    html += '<button onclick="goSectors()" class="text-emerald-600 active:text-emerald-800">Sectors</button>';
+    html += '<span class="text-slate-300">/</span>';
+    html += '<span class="text-slate-800">' + escapeHtml(auditState.sectors[auditState.sectorId].title) + '</span>';
+  } else if (auditState.view === 'questions') {
+    html += '<button onclick="goSectors()" class="text-emerald-600 active:text-emerald-800">Sectors</button>';
+    html += '<span class="text-slate-300">/</span>';
+    html += '<button onclick="goSector(auditState.sectorId)" class="text-emerald-600 active:text-emerald-800">' + escapeHtml(auditState.sectors[auditState.sectorId].title) + '</button>';
+    html += '<span class="text-slate-300">/</span>';
+    var cat = auditState.sectors[auditState.sectorId].categories.find(function(c) { return c.id === auditState.categoryId; });
+    html += '<span class="text-slate-800">' + escapeHtml(cat ? cat.name : '') + '</span>';
+  }
+  html += '</div>';
+  return html;
+}
+
+// === META FORM ===
 function renderMetaView() {
   var main = document.getElementById('mainView');
   var meta = auditState || {};
@@ -72,7 +99,7 @@ function renderMetaView() {
         </div>
         <div class="flex-1">
           <div class="text-sm font-black ${isTraining ? 'text-amber-700' : 'text-slate-600'}">Training Mode</div>
-          <div class="text-[11px] ${isTraining ? 'text-amber-500' : 'text-slate-400'}">${isTraining ? 'ON — custom store names, not saved to history' : 'Tap to enable for practice audits'}</div>
+          <div class="text-[11px] ${isTraining ? 'text-amber-500' : 'text-slate-400'}">${isTraining ? 'ON — custom store name, exported as TRAINING' : 'Tap to enable for practice audits'}</div>
         </div>
         <div class="w-12 h-7 rounded-full ${isTraining ? 'bg-amber-400' : 'bg-slate-300'} flex items-center px-0.5 transition-colors flex-shrink-0">
           <div class="w-6 h-6 rounded-full bg-white shadow transition-transform ${isTraining ? 'translate-x-5' : ''}"></div>
@@ -211,14 +238,17 @@ window.beginAudit = function() {
   auditState.date = (document.getElementById('metaDate') || {}).value || new Date().toISOString().slice(0, 10);
   auditState.summary = (document.getElementById('metaSummary') || {}).value || '';
   auditInitSectors();
+  _expandedCategories = {};
   auditState.view = 'sectors';
   renderAuditPerform();
 };
 
+// === SECTOR VIEW ===
 function renderSectorView() {
   var main = document.getElementById('mainView');
   var overall = auditOverallMetrics();
   var counts = auditTotalAnswered();
+  var actions = auditGetActions();
   var sectorCards = auditSectorKeys().map(function(sid) {
     var sec = auditState.sectors[sid];
     var m = auditSectorMetrics(sid);
@@ -239,6 +269,51 @@ function renderSectorView() {
       '</div></button>';
   }).join('');
 
+  // Action Review section
+  var actionReviewHTML = '';
+  if (actions.length > 0) {
+    var actionRows = actions.map(function(a) {
+      var statusCls = (a.action.status || 'Open') === 'Open' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+      var critBadge = a.action.critical ? '<span class="bg-red-100 text-red-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">CRITICAL</span> ' : '';
+      var photoIndicator = a.photos.filter(Boolean).length > 0 ? '<span class="text-slate-400">' + a.photos.filter(Boolean).length + '</span>' : '';
+      return '<tr onclick="jumpToQuestion(\'' + a.questionId + '\')" class="border-b border-slate-100 active:bg-slate-50 cursor-pointer">' +
+        '<td class="py-2.5 px-2 text-[11px] font-bold text-slate-600 max-w-[80px] truncate">' + escapeHtml(a.sector) + '</td>' +
+        '<td class="py-2.5 px-2 text-[11px] text-slate-800 max-w-[120px] truncate">' + escapeHtml(a.question.substring(0, 40)) + '</td>' +
+        '<td class="py-2.5 px-2 text-[10px] font-bold">' + critBadge + '<span class="' + statusCls + ' px-2 py-0.5 rounded-full">' + (a.action.status || 'Open') + '</span></td>' +
+        '<td class="py-2.5 px-2 text-center">' + photoIndicator + '</td>' +
+      '</tr>';
+    }).join('');
+
+    actionReviewHTML = `
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm mb-4 overflow-hidden">
+        <button onclick="toggleActionReview()" class="w-full flex items-center justify-between px-5 py-4 active:bg-slate-50 transition-colors">
+          <div class="flex items-center gap-2">
+            <h3 class="font-black text-slate-800 text-sm">Action Review</h3>
+            <span class="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded-full">${actions.length} items</span>
+          </div>
+          <svg id="actionReviewChevron" class="w-5 h-5 text-slate-400 transition-transform ${_actionReviewOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div id="actionReviewBody" class="${_actionReviewOpen ? '' : 'hidden'}">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="border-b border-slate-200 bg-slate-50">
+                  <th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Sector</th>
+                  <th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Question</th>
+                  <th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Status</th>
+                  <th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase text-center">📷</th>
+                </tr>
+              </thead>
+              <tbody>${actionRows}</tbody>
+            </table>
+          </div>
+          <div class="px-5 py-3 border-t border-slate-100">
+            <p class="text-[10px] text-slate-400 font-bold">Tap a row to jump to that question</p>
+          </div>
+        </div>
+      </div>`;
+  }
+
   main.innerHTML = `
     <div class="max-w-lg mx-auto">
       <div class="flex items-center gap-3 mb-4">
@@ -254,6 +329,8 @@ function renderSectorView() {
         </div>
       </div>
 
+      ${renderCrumbs()}
+
       <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm mb-4">
         <div class="flex items-center gap-4">
           <svg viewBox="0 0 44 44" width="80" height="80" class="flex-shrink-0">
@@ -268,6 +345,8 @@ function renderSectorView() {
         </div>
       </div>
 
+      ${actionReviewHTML}
+
       <h3 class="font-black text-slate-800 text-sm uppercase tracking-widest text-slate-400 mb-3">Sectors</h3>
       <div class="space-y-3 mb-6">${sectorCards}</div>
 
@@ -277,36 +356,146 @@ function renderSectorView() {
     </div>`;
 }
 
+var _actionReviewOpen = false;
+window.toggleActionReview = function() {
+  _actionReviewOpen = !_actionReviewOpen;
+  var body = document.getElementById('actionReviewBody');
+  var chevron = document.getElementById('actionReviewChevron');
+  if (body) body.classList.toggle('hidden', !_actionReviewOpen);
+  if (chevron) chevron.classList.toggle('rotate-180', _actionReviewOpen);
+};
+
+window.jumpToQuestion = function(qid) {
+  var found = null;
+  auditSectorKeys().forEach(function(sid) {
+    auditState.sectors[sid].categories.forEach(function(cat) {
+      cat.questions.forEach(function(q) {
+        if (q.id === qid) found = { sid: sid, cid: cat.id };
+      });
+    });
+  });
+  if (!found) return;
+  auditState.view = 'questions';
+  auditState.sectorId = found.sid;
+  auditState.categoryId = found.cid;
+  renderAuditPerform();
+  setTimeout(function() {
+    var el = document.querySelector('[data-qid="' + qid + '"]');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ap-highlight');
+      setTimeout(function() { el.classList.remove('ap-highlight'); }, 2000);
+    }
+  }, 100);
+};
+
+// === CATEGORY VIEW (Vertical with Expand/Collapse) ===
 function renderCategoryView() {
   var main = document.getElementById('mainView');
   var sec = auditState.sectors[auditState.sectorId];
   var meta = SECTOR_META[auditState.sectorId] || { color: 'slate' };
+
+  var expandAllBtn = '<div class="flex gap-2 mb-3">' +
+    '<button onclick="expandAllCategories()" class="text-xs font-bold text-emerald-600 active:text-emerald-800 px-3 py-1.5 bg-emerald-50 rounded-lg">Expand All</button>' +
+    '<button onclick="collapseAllCategories()" class="text-xs font-bold text-slate-500 active:text-slate-700 px-3 py-1.5 bg-slate-100 rounded-lg">Collapse All</button>' +
+  '</div>';
+
   var catCards = sec.categories.map(function(cat) {
     var answered = cat.questions.filter(function(q) { return q.answer; }).length;
     var total = cat.questions.length;
     var pct = total ? Math.round(answered / total * 100) : 0;
-    return '<button onclick="goCategory(\'' + cat.id + '\')" class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm active:shadow-md transition-all text-left">' +
-      '<div class="flex items-center justify-between mb-2">' +
-        '<span class="font-black text-slate-800 text-sm">' + escapeHtml(cat.name) + '</span>' +
-        '<span class="text-xs font-bold ' + (answered === total ? 'text-emerald-600' : 'text-slate-400') + '">' + answered + '/' + total + '</span>' +
-      '</div>' +
-      '<div class="h-1.5 bg-slate-100 rounded-full overflow-hidden">' +
-        '<div class="h-full bg-' + meta.color + '-400 rounded-full" style="width:' + pct + '%"></div>' +
-      '</div></button>';
+    var isOpen = _expandedCategories[cat.id];
+
+    var questionsHTML = '';
+    if (isOpen) {
+      questionsHTML = cat.questions.map(function(q) {
+        var passCls = q.answer === 'Pass' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 active:bg-emerald-50';
+        var failCls = q.answer === 'Fail' ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-600 active:bg-red-50';
+        var naCls = q.answer === 'NA' ? 'bg-slate-400 text-white' : 'bg-slate-100 text-slate-600 active:bg-slate-200';
+        var actionEnabled = q.action && q.action.enabled;
+        var actionCls = actionEnabled ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500 active:bg-amber-50';
+        var photos = [q.photoThumb, q.extraPhotoThumb, q.extraPhoto2Thumb].filter(Boolean);
+
+        return '<div class="bg-slate-50 rounded-xl p-3 mb-2 border border-slate-100" data-qid="' + q.id + '">' +
+          '<div class="flex items-start gap-2 mb-2">' +
+            '<span class="bg-' + meta.color + '-100 text-' + meta.color + '-700 text-[10px] font-black px-2 py-0.5 rounded shrink-0">\u00d7' + q.weight + '</span>' +
+            '<p class="text-xs font-bold text-slate-800 leading-snug">' + escapeHtml(q.text) + '</p>' +
+          '</div>' +
+          '<div class="flex items-center gap-1.5 mb-2 flex-wrap">' +
+            '<button onclick="auditAnswer(\'' + auditState.sectorId + '\',\'' + cat.id + '\',\'' + q.id + '\',\'Pass\')" class="px-3 py-1.5 rounded-full text-[10px] font-bold transition-colors ' + passCls + '">\u2713 Pass</button>' +
+            '<button onclick="auditAnswer(\'' + auditState.sectorId + '\',\'' + cat.id + '\',\'' + q.id + '\',\'Fail\')" class="px-3 py-1.5 rounded-full text-[10px] font-bold transition-colors ' + failCls + '">\u2717 Fail</button>' +
+            '<button onclick="auditAnswer(\'' + auditState.sectorId + '\',\'' + cat.id + '\',\'' + q.id + '\',\'NA\')" class="px-3 py-1.5 rounded-full text-[10px] font-bold transition-colors ' + naCls + '">N/A</button>' +
+            '<button onclick="auditToggleAction(\'' + auditState.sectorId + '\',\'' + cat.id + '\',\'' + q.id + '\')" class="px-3 py-1.5 rounded-full text-[10px] font-bold transition-colors ' + actionCls + '">\u26a1 Action</button>' +
+          '</div>' +
+          '<div class="flex items-center gap-1.5 mb-2 flex-wrap">' +
+            '<label class="text-[9px] font-bold text-slate-400 uppercase">Photo</label>' +
+            (q.photoThumb ? '<img src="' + q.photoThumb + '" class="w-12 h-12 rounded-lg object-cover border border-slate-200">' : '') +
+            (q.extraPhotoThumb ? '<img src="' + q.extraPhotoThumb + '" class="w-12 h-12 rounded-lg object-cover border border-slate-200">' : '') +
+            (q.extraPhoto2Thumb ? '<img src="' + q.extraPhoto2Thumb + '" class="w-12 h-12 rounded-lg object-cover border border-slate-200">' : '') +
+            (photos.length < 3 ? '<label class="w-12 h-12 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 active:border-emerald-400 active:text-emerald-500 cursor-pointer transition-colors text-lg">' +
+              '<input type="file" accept="image/*" capture="environment" class="hidden" onchange="auditPhoto(\'' + auditState.sectorId + '\',\'' + cat.id + '\',\'' + q.id + '\',' + photos.length + ', event)">+</label>' : '') +
+          '</div>' +
+          (actionEnabled ? auditActionHTML(q, auditState.sectorId, cat.id) : '') +
+        '</div>';
+      }).join('');
+    }
+
+    return '<div class="bg-white rounded-xl border border-slate-200 shadow-sm mb-3 overflow-hidden">' +
+      '<button onclick="toggleCategory(\'' + cat.id + '\')" class="w-full flex items-center justify-between px-4 py-3.5 active:bg-slate-50 transition-colors text-left">' +
+        '<div class="flex-1 min-w-0">' +
+          '<div class="font-black text-slate-800 text-sm">' + escapeHtml(cat.name) + '</div>' +
+          '<div class="text-[11px] text-slate-400">' + answered + '/' + total + ' answered</div>' +
+        '</div>' +
+        '<div class="flex items-center gap-2">' +
+          '<div class="h-1.5 w-16 bg-slate-100 rounded-full overflow-hidden">' +
+            '<div class="h-full bg-' + meta.color + '-400 rounded-full" style="width:' + pct + '%"></div>' +
+          '</div>' +
+          '<svg class="w-4 h-4 text-slate-400 transition-transform ' + (isOpen ? 'rotate-180' : '') + '" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>' +
+        '</div>' +
+      '</button>' +
+      (isOpen ? '<div class="px-3 pb-3">' + questionsHTML + '</div>' : '') +
+    '</div>';
   }).join('');
 
   main.innerHTML = `
     <div class="max-w-lg mx-auto">
-      <div class="flex items-center gap-3 mb-4">
+      <div class="flex items-center gap-3 mb-2">
         <button onclick="goSectors()" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 active:bg-slate-200 transition-colors">
           <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
         </button>
-        <h2 class="text-lg font-black outfit text-slate-800 uppercase">${escapeHtml(sec.title)}</h2>
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-lg font-black outfit text-slate-800 uppercase">${escapeHtml(sec.title)}</h2>
+            ${auditState.isTraining ? '<span class="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">Training</span>' : ''}
+          </div>
+        </div>
       </div>
-      <div class="space-y-3">${catCards}</div>
+      ${renderCrumbs()}
+      ${expandAllBtn}
+      <div class="mb-6">${catCards}</div>
+      <button onclick="goSectors()" class="w-full bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-black py-4 rounded-2xl text-sm shadow-lg transition-colors mb-4">
+        Back to Sectors
+      </button>
     </div>`;
 }
 
+window.toggleCategory = function(catId) {
+  _expandedCategories[catId] = !_expandedCategories[catId];
+  renderAuditPerform();
+};
+
+window.expandAllCategories = function() {
+  var sec = auditState.sectors[auditState.sectorId];
+  sec.categories.forEach(function(cat) { _expandedCategories[cat.id] = true; });
+  renderAuditPerform();
+};
+
+window.collapseAllCategories = function() {
+  _expandedCategories = {};
+  renderAuditPerform();
+};
+
+// === QUESTION VIEW (Single category) ===
 function renderQuestionView() {
   var main = document.getElementById('mainView');
   var sec = auditState.sectors[auditState.sectorId];
@@ -321,7 +510,7 @@ function renderQuestionView() {
     var actionCls = actionEnabled ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500 active:bg-amber-50';
     var photos = [q.photoThumb, q.extraPhotoThumb, q.extraPhoto2Thumb].filter(Boolean);
 
-    return '<div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm mb-3">' +
+    return '<div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm mb-3" data-qid="' + q.id + '">' +
       '<div class="flex items-start gap-3 mb-3">' +
         '<span class="bg-' + meta.color + '-50 text-' + meta.color + '-700 text-[10px] font-black px-2 py-0.5 rounded shrink-0">\u00d7' + q.weight + '</span>' +
         '<p class="text-sm font-bold text-slate-800 leading-snug">' + escapeHtml(q.text) + '</p>' +
@@ -346,12 +535,13 @@ function renderQuestionView() {
 
   main.innerHTML = `
     <div class="max-w-lg mx-auto">
-      <div class="flex items-center gap-3 mb-4">
+      <div class="flex items-center gap-3 mb-2">
         <button onclick="goCategory_back()" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 active:bg-slate-200 transition-colors">
           <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
         </button>
         <h2 class="text-sm font-black outfit text-slate-800 uppercase truncate">${escapeHtml(cat.name)}</h2>
       </div>
+      ${renderCrumbs()}
       ${questionsHTML}
     </div>`;
 }
@@ -387,10 +577,11 @@ function auditActionHTML(q, sid, cid) {
     '</label></div>';
 }
 
+// === COMPLETE VIEW ===
 function renderCompleteView() {
   var main = document.getElementById('mainView');
   var overall = auditOverallMetrics();
-  var trainingBadge = auditState.isTraining ? '<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-sm font-bold text-amber-700 inline-block mb-4">Training Mode &mdash; will not be saved to history</div>' : '';
+  var trainingBadge = auditState.isTraining ? '<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-sm font-bold text-amber-700 inline-block mb-4">Training Mode &mdash; exported as TRAINING</div>' : '';
   main.innerHTML = `
     <div class="max-w-lg mx-auto text-center py-8">
       <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -419,10 +610,10 @@ function renderCompleteView() {
 }
 
 // === NAVIGATION ===
-window.goHome = function() { auditState = null; renderHome(); };
+window.goHome = function() { auditState = null; _expandedCategories = {}; renderHome(); };
 window.goMeta = function() { auditState.view = 'meta'; renderAuditPerform(); };
-window.goSectors = function() { auditState.view = 'sectors'; renderAuditPerform(); };
-window.goSector = function(sid) { auditState.view = 'categories'; auditState.sectorId = sid; renderAuditPerform(); };
+window.goSectors = function() { auditState.view = 'sectors'; _expandedCategories = {}; renderAuditPerform(); };
+window.goSector = function(sid) { auditState.view = 'categories'; auditState.sectorId = sid; _expandedCategories = {}; renderAuditPerform(); };
 window.goCategory = function(cid) { auditState.view = 'questions'; auditState.categoryId = cid; renderAuditPerform(); };
 window.goCategory_back = function() { auditState.view = 'categories'; renderAuditPerform(); };
 
@@ -484,5 +675,6 @@ window.completeAudit = function() {
 
 window.startNewAudit = function() {
   auditState = { view: 'meta', branchId: null, storeName: '', areaManager: '', email: '', manager: '', auditor: 'Blake Lowis', date: new Date().toISOString().slice(0, 10), summary: '', sectorId: null, categoryId: null, sectors: {}, isTraining: false };
+  _expandedCategories = {};
   renderAuditPerform();
 };
