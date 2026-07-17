@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Birds Audit</title>
+  <link rel="stylesheet" href="tailwind.min.css">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#00A88E">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="jszip.min.js"></script>
+  <script src="jspdf.umd.min.js"></script>
+  <script src="jspdf.plugin.autotable.min.js"></script>
+  <script src="html2canvas.min.js"></script>
+</head>
+<body class="bg-slate-50 font-sans antialiased">
+
+  <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-200 px-4 py-3 flex items-center gap-3">
+    <img src="icon-192.png" alt="" class="w-8 h-8 rounded-lg">
+    <h1 class="text-lg font-black outfit birds-green leading-none tracking-tight">Birds Audit</h1>
+  </header>
+
+  <main id="mainView" class="px-4 py-4 pb-8"></main>
+
+  <script src="js/db.js"></script>
+  <script src="js/store-data.js"></script>
+  <script src="js/audit-engine.js"></script>
+  <script src="js/audit-ui.js"></script>
+  <script src="js/export.js"></script>
+  <script>
+    var _questionsLoaded = false;
+
+    function onDBReady() {
+      console.log('[App] DB ready, loading questions...');
+      fetch('AuditQuestions.json')
+        .then(function(r) { return r.json(); })
+        .then(function(qb) {
+          _auditQB = qb;
+          _questionsLoaded = true;
+          console.log('[App] Question bank loaded:', Object.keys(qb).length, 'sectors');
+          renderHome();
+        })
+        .catch(function(err) {
+          console.error('[App] Failed to load questions:', err);
+          document.getElementById('mainView').innerHTML =
+            '<div class="max-w-lg mx-auto text-center py-16">' +
+            '<div class="text-4xl mb-4">&#9888;</div>' +
+            '<h2 class="text-xl font-black text-slate-800 mb-2">Failed to Load</h2>' +
+            '<p class="text-slate-400 text-sm">Could not load AuditQuestions.json</p>' +
+            '<p class="text-red-500 text-xs mt-2">' + escapeHtml(err.message) + '</p>' +
+            '</div>';
+        });
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./sw.js').catch(function(err) {
+          console.warn('[SW] Registration failed:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
