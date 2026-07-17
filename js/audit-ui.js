@@ -39,52 +39,22 @@ function renderMetaView() {
   var main = document.getElementById('mainView');
   var meta = auditState || {};
   var qbInfo = _auditQB ? '<span class="text-emerald-600 font-bold">Loaded (' + Object.keys(_auditQB).length + ' sectors)</span>' : '<span class="text-amber-600 font-bold">Loading...</span>';
-  var selectedStoreName = '';
-  if (meta.branchId) {
-    var found = STORES.find(function(x) { return x.id === meta.branchId; });
-    if (found) selectedStoreName = found.name;
-  }
   var isTraining = meta.isTraining || false;
-  var trainingStoreName = (meta.branchId === '__training' && meta.storeName) ? meta.storeName : '';
 
   var storeFieldHTML = '';
+  var emailPlaceholder = 'auto from store';
+  var managerPlaceholder = 'e.g. John Smith';
+  var auditorDefault = escapeHtml(meta.auditor || 'Blake Lowis');
+
   if (isTraining) {
     storeFieldHTML =
       '<div>' +
         '<label class="text-xs font-black text-amber-600 uppercase">Store Name (Training)</label>' +
-        '<input id="trainingStoreInput" type="text" value="' + escapeHtml(trainingStoreName) + '" placeholder="Type any store name..." class="w-full border border-amber-200 bg-amber-50 rounded-xl px-4 py-3.5 text-sm mt-1 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none">' +
+        '<input id="trainingStoreInput" type="text" value="' + escapeHtml(meta.branchId === '__training' ? meta.storeName : '') + '" placeholder="e.g. Alvaston" class="w-full border border-amber-200 bg-amber-50 rounded-xl px-4 py-3.5 text-sm mt-1 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none">' +
       '</div>';
-  } else {
-    storeFieldHTML =
-      '<div class="relative" id="storePickerWrap">' +
-        '<label class="text-xs font-black text-slate-500 uppercase">Store *</label>' +
-        '<div id="storePickerDisplay" onclick="openStorePicker()" class="w-full border border-slate-200 rounded-xl px-4 py-3.5 text-sm mt-1 bg-white cursor-pointer flex items-center justify-between active:bg-slate-50 transition-colors">' +
-          '<span id="storePickerLabel" class="' + (selectedStoreName ? 'text-slate-800 font-bold' : 'text-slate-400') + '">' + (selectedStoreName ? escapeHtml(selectedStoreName) : 'Tap to search stores...') + '</span>' +
-          '<svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>' +
-        '</div>' +
-        '<div id="storePickerDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">' +
-          '<div class="p-2 border-b border-slate-100">' +
-            '<input id="storePickerSearch" type="text" placeholder="Type to search..." oninput="filterStorePicker(this.value)" class="w-full px-3 py-2.5 text-sm rounded-lg border border-slate-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none" autocomplete="off">' +
-          '</div>' +
-          '<div class="p-1 border-b border-slate-100">' +
-            '<button onclick="toggleTrainingMode()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors hover:bg-slate-50">' +
-              '<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">' +
-                '<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>' +
-              '</div>' +
-              '<div>' +
-                '<div class="text-sm font-bold text-slate-700">Training Mode</div>' +
-                '<div class="text-[10px] text-slate-400">Type any store name</div>' +
-              '</div>' +
-              '<div class="ml-auto">' +
-                '<div class="w-10 h-6 rounded-full transition-colors bg-slate-200 flex items-center px-0.5">' +
-                  '<div class="w-5 h-5 rounded-full bg-white shadow transition-transform"></div>' +
-                '</div>' +
-              '</div>' +
-            '</button>' +
-          '</div>' +
-          '<div id="storePickerList" class="max-h-60 overflow-y-auto p-1"></div>' +
-        '</div>' +
-      '</div>';
+    emailPlaceholder = 'e.g. trainee@birdsofderby.co.uk';
+    managerPlaceholder = 'Store manager name';
+    auditorDefault = escapeHtml(meta.auditor || '');
   }
 
   main.innerHTML = `
@@ -94,24 +64,36 @@ function renderMetaView() {
           <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
         </button>
         <h2 class="text-2xl font-black outfit birds-green uppercase">New Audit</h2>
-        ${isTraining ? '<span class="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Training</span>' : ''}
+      </div>
+
+      <div onclick="toggleTrainingMode()" class="w-full flex items-center gap-4 ${isTraining ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50 border border-slate-200'} rounded-2xl px-5 py-4 mb-4 cursor-pointer active:scale-[0.98] transition-all select-none">
+        <div class="w-10 h-10 rounded-xl ${isTraining ? 'bg-amber-100' : 'bg-slate-200'} flex items-center justify-center flex-shrink-0">
+          <svg class="w-5 h-5 ${isTraining ? 'text-amber-600' : 'text-slate-400'}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+        </div>
+        <div class="flex-1">
+          <div class="text-sm font-black ${isTraining ? 'text-amber-700' : 'text-slate-600'}">Training Mode</div>
+          <div class="text-[11px] ${isTraining ? 'text-amber-500' : 'text-slate-400'}">${isTraining ? 'ON — custom store names, not saved to history' : 'Tap to enable for practice audits'}</div>
+        </div>
+        <div class="w-12 h-7 rounded-full ${isTraining ? 'bg-amber-400' : 'bg-slate-300'} flex items-center px-0.5 transition-colors flex-shrink-0">
+          <div class="w-6 h-6 rounded-full bg-white shadow transition-transform ${isTraining ? 'translate-x-5' : ''}"></div>
+        </div>
       </div>
 
       <div class="bg-white rounded-2xl border ${isTraining ? 'border-amber-200' : 'border-slate-200'} p-5 shadow-sm mb-4">
-        <h3 class="font-black ${isTraining ? 'text-amber-800' : 'text-slate-800'} mb-4">Store Details</h3>
+        <h3 class="font-black ${isTraining ? 'text-amber-800' : 'text-slate-800'} mb-4">${isTraining ? 'Training Audit Details' : 'Store Details'}</h3>
         <div class="space-y-3">
           ${storeFieldHTML}
           <div>
-            <label class="text-xs font-black text-slate-500 uppercase">Email</label>
-            <input id="metaEmail" type="email" value="${escapeHtml(meta.email || '')}" placeholder="${isTraining ? 'optional' : 'auto from store'}" class="w-full border border-slate-200 rounded-xl px-4 py-3.5 text-sm mt-1">
+            <label class="text-xs font-black text-slate-500 uppercase">Email ${isTraining ? '' : '*'}</label>
+            <input id="metaEmail" type="email" value="${escapeHtml(meta.email || '')}" placeholder="${emailPlaceholder}" class="w-full border border-slate-200 rounded-xl px-4 py-3.5 text-sm mt-1">
           </div>
           <div>
             <label class="text-xs font-black text-slate-500 uppercase">Store Manager *</label>
-            <input id="metaManager" type="text" value="${escapeHtml(meta.manager || '')}" placeholder="e.g. John Smith" class="w-full border border-slate-200 rounded-xl px-4 py-3.5 text-sm mt-1">
+            <input id="metaManager" type="text" value="${escapeHtml(meta.manager || '')}" placeholder="${managerPlaceholder}" class="w-full border border-slate-200 rounded-xl px-4 py-3.5 text-sm mt-1">
           </div>
           <div>
             <label class="text-xs font-black text-slate-500 uppercase">Auditor</label>
-            <input id="metaAuditor" type="text" value="${escapeHtml(meta.auditor || 'Blake Lowis')}" class="w-full border border-slate-200 rounded-xl px-4 py-3.5 text-sm mt-1">
+            <input id="metaAuditor" type="text" value="${auditorDefault}" placeholder="${isTraining ? 'Trainee name' : ''}" class="w-full border border-slate-200 rounded-xl px-4 py-3.5 text-sm mt-1">
           </div>
           <div>
             <label class="text-xs font-black text-slate-500 uppercase">Date</label>
@@ -225,7 +207,7 @@ window.beginAudit = function() {
   }
 
   auditState.manager = (document.getElementById('metaManager') || {}).value || '';
-  auditState.auditor = (document.getElementById('metaAuditor') || {}).value || 'Blake Lowis';
+  auditState.auditor = (document.getElementById('metaAuditor') || {}).value || (auditState.isTraining ? '' : 'Blake Lowis');
   auditState.date = (document.getElementById('metaDate') || {}).value || new Date().toISOString().slice(0, 10);
   auditState.summary = (document.getElementById('metaSummary') || {}).value || '';
   auditInitSectors();
