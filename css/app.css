@@ -1,0 +1,127 @@
+/* ============================================================
+   Birds Audit Mobile – app.css
+   Mobile-first styling for auditor use
+   ============================================================ */
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/inter-v20-latin-regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../fonts/inter-v20-latin-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/inter-v20-latin-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../fonts/inter-v20-latin-800.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/outfit-v15-latin-regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/outfit-v15-latin-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Outfit';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../fonts/outfit-v15-latin-800.woff2') format('woff2');
+}
+
+:root {
+  --birds-green:       #00A88E;
+  --birds-green-hover: #009478;
+  --birds-dark:        #0f172a;
+  --birds-radius:      16px;
+  --birds-radius-sm:   12px;
+  --birds-radius-xs:   8px;
+  --birds-radius-pill: 9999px;
+  --birds-shadow:      0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --birds-shadow-md:   0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -2px rgba(0,0,0,.05);
+  --birds-shadow-lg:   0 10px 15px -3px rgba(0,0,0,.08), 0 4px 6px -4px rgba(0,0,0,.04);
+  --birds-transition:  150ms cubic-bezier(.4,0,.2,1);
+  --birds-font:        'Inter', system-ui, -apple-system, sans-serif;
+  --birds-font-display:'Outfit', 'Inter', system-ui, sans-serif;
+}
+
+.birds-green { color: var(--birds-green) !important; }
+.bg-birds { background-color: var(--birds-green) !important; }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: var(--birds-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f8fafc;
+  color: var(--birds-dark);
+  line-height: 1.5;
+  margin: 0;
+  padding: 0;
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.outfit {
+  font-family: var(--birds-font-display);
+}
+
+/* ── Large touch targets for mobile ─────────────────────────── */
+button, [role="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ── Prevent zoom on inputs ─────────────────────────────────── */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* ── Scrollbar cleanup ──────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+* { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+
+/* ── Safe area for notch / home indicator ───────────────────── */
+@supports (padding: env(safe-area-inset-top)) {
+  header {
+    padding-top: env(safe-area-inset-top);
+  }
+  main {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+    padding-bottom: max(32px, env(safe-area-inset-bottom));
+  }
+}
+
+/* ── Active state feedback ──────────────────────────────────── */
+button:active, .active\:shadow-md:active {
+  transform: scale(0.98);
+}
