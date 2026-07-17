@@ -45,6 +45,47 @@ function renderMetaView() {
     if (found) selectedStoreName = found.name;
   }
   var isTraining = meta.isTraining || false;
+  var trainingStoreName = (meta.branchId === '__training' && meta.storeName) ? meta.storeName : '';
+
+  var storeFieldHTML = '';
+  if (isTraining) {
+    storeFieldHTML =
+      '<div>' +
+        '<label class="text-xs font-black text-amber-600 uppercase">Store Name (Training)</label>' +
+        '<input id="trainingStoreInput" type="text" value="' + escapeHtml(trainingStoreName) + '" placeholder="Type any store name..." class="w-full border border-amber-200 bg-amber-50 rounded-xl px-4 py-3.5 text-sm mt-1 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 outline-none">' +
+      '</div>';
+  } else {
+    storeFieldHTML =
+      '<div class="relative" id="storePickerWrap">' +
+        '<label class="text-xs font-black text-slate-500 uppercase">Store *</label>' +
+        '<div id="storePickerDisplay" onclick="openStorePicker()" class="w-full border border-slate-200 rounded-xl px-4 py-3.5 text-sm mt-1 bg-white cursor-pointer flex items-center justify-between active:bg-slate-50 transition-colors">' +
+          '<span id="storePickerLabel" class="' + (selectedStoreName ? 'text-slate-800 font-bold' : 'text-slate-400') + '">' + (selectedStoreName ? escapeHtml(selectedStoreName) : 'Tap to search stores...') + '</span>' +
+          '<svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>' +
+        '</div>' +
+        '<div id="storePickerDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">' +
+          '<div class="p-2 border-b border-slate-100">' +
+            '<input id="storePickerSearch" type="text" placeholder="Type to search..." oninput="filterStorePicker(this.value)" class="w-full px-3 py-2.5 text-sm rounded-lg border border-slate-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none" autocomplete="off">' +
+          '</div>' +
+          '<div class="p-1 border-b border-slate-100">' +
+            '<button onclick="toggleTrainingMode()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors hover:bg-slate-50">' +
+              '<div class="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">' +
+                '<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>' +
+              '</div>' +
+              '<div>' +
+                '<div class="text-sm font-bold text-slate-700">Training Mode</div>' +
+                '<div class="text-[10px] text-slate-400">Type any store name</div>' +
+              '</div>' +
+              '<div class="ml-auto">' +
+                '<div class="w-10 h-6 rounded-full transition-colors bg-slate-200 flex items-center px-0.5">' +
+                  '<div class="w-5 h-5 rounded-full bg-white shadow transition-transform"></div>' +
+                '</div>' +
+              '</div>' +
+            '</button>' +
+          '</div>' +
+          '<div id="storePickerList" class="max-h-60 overflow-y-auto p-1"></div>' +
+        '</div>' +
+      '</div>';
+  }
 
   main.innerHTML = `
     <div class="max-w-lg mx-auto">
@@ -53,43 +94,16 @@ function renderMetaView() {
           <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
         </button>
         <h2 class="text-2xl font-black outfit birds-green uppercase">New Audit</h2>
+        ${isTraining ? '<span class="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Training</span>' : ''}
       </div>
 
-      <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm mb-4">
-        <h3 class="font-black text-slate-800 mb-4">Store Details</h3>
+      <div class="bg-white rounded-2xl border ${isTraining ? 'border-amber-200' : 'border-slate-200'} p-5 shadow-sm mb-4">
+        <h3 class="font-black ${isTraining ? 'text-amber-800' : 'text-slate-800'} mb-4">Store Details</h3>
         <div class="space-y-3">
-          <div class="relative" id="storePickerWrap">
-            <label class="text-xs font-black text-slate-500 uppercase">Store *</label>
-            <div id="storePickerDisplay" onclick="openStorePicker()" class="w-full border border-slate-200 rounded-xl px-4 py-3.5 text-sm mt-1 bg-white cursor-pointer flex items-center justify-between active:bg-slate-50 transition-colors">
-              <span id="storePickerLabel" class="${selectedStoreName ? 'text-slate-800 font-bold' : 'text-slate-400'}">${selectedStoreName ? escapeHtml(selectedStoreName) : 'Tap to search stores...'}</span>
-              <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
-            </div>
-            <div id="storePickerDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
-              <div class="p-2 border-b border-slate-100">
-                <input id="storePickerSearch" type="text" placeholder="Type to search..." oninput="filterStorePicker(this.value)" class="w-full px-3 py-2.5 text-sm rounded-lg border border-slate-200 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none" autocomplete="off">
-              </div>
-              <div class="p-1 border-b border-slate-100">
-                <button onclick="toggleTrainingMode()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${isTraining ? 'bg-amber-50' : 'hover:bg-slate-50'}">
-                  <div class="w-8 h-8 rounded-lg ${isTraining ? 'bg-amber-100' : 'bg-slate-100'} flex items-center justify-center flex-shrink-0">
-                    <svg class="w-4 h-4 ${isTraining ? 'text-amber-600' : 'text-slate-400'}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-                  </div>
-                  <div>
-                    <div class="text-sm font-bold ${isTraining ? 'text-amber-700' : 'text-slate-700'}">Training Mode</div>
-                    <div class="text-[10px] ${isTraining ? 'text-amber-500' : 'text-slate-400'}">Practice audit — not saved to history</div>
-                  </div>
-                  <div class="ml-auto">
-                    <div class="w-10 h-6 rounded-full transition-colors ${isTraining ? 'bg-amber-400' : 'bg-slate-200'} flex items-center px-0.5">
-                      <div class="w-5 h-5 rounded-full bg-white shadow transition-transform ${isTraining ? 'translate-x-4' : ''}"></div>
-                    </div>
-                  </div>
-                </button>
-              </div>
-              <div id="storePickerList" class="max-h-60 overflow-y-auto p-1"></div>
-            </div>
-          </div>
+          ${storeFieldHTML}
           <div>
             <label class="text-xs font-black text-slate-500 uppercase">Email</label>
-            <input id="metaEmail" type="email" value="${escapeHtml(meta.email || '')}" placeholder="auto from store" class="w-full border border-slate-200 rounded-xl px-4 py-3.5 text-sm mt-1">
+            <input id="metaEmail" type="email" value="${escapeHtml(meta.email || '')}" placeholder="${isTraining ? 'optional' : 'auto from store'}" class="w-full border border-slate-200 rounded-xl px-4 py-3.5 text-sm mt-1">
           </div>
           <div>
             <label class="text-xs font-black text-slate-500 uppercase">Store Manager *</label>
@@ -117,12 +131,12 @@ function renderMetaView() {
         </div>
       </div>
 
-      <button onclick="beginAudit()" id="metaStartBtn" class="w-full bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-5 rounded-2xl text-lg shadow-lg transition-colors">
-        Start Audit
+      <button onclick="beginAudit()" id="metaStartBtn" class="w-full ${isTraining ? 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700' : 'bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700'} disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-5 rounded-2xl text-lg shadow-lg transition-colors">
+        ${isTraining ? 'Start Training Audit' : 'Start Audit'}
       </button>
     </div>`;
 
-  renderStorePickerList('');
+  if (!isTraining) renderStorePickerList('');
 }
 
 window.openStorePicker = function() {
@@ -183,29 +197,8 @@ window.pickStore = function(id) {
 window.toggleTrainingMode = function() {
   if (!auditState) return;
   auditState.isTraining = !auditState.isTraining;
-  var meta = auditState;
-  var isTraining = meta.isTraining;
-  var toggle = document.querySelector('#storePickerDropdown button[onclick^="toggleTrainingMode"]');
-  if (toggle) {
-    toggle.className = 'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ' + (isTraining ? 'bg-amber-50' : 'hover:bg-slate-50');
-    var iconBox = toggle.querySelector('div:first-child');
-    if (iconBox) iconBox.className = 'w-8 h-8 rounded-lg ' + (isTraining ? 'bg-amber-100' : 'bg-slate-100') + ' flex items-center justify-center flex-shrink-0';
-    var icon = toggle.querySelector('svg');
-    if (icon) icon.className = 'w-4 h-4 ' + (isTraining ? 'text-amber-600' : 'text-slate-400');
-    var txtDiv = toggle.querySelector('div:nth-child(2)');
-    if (txtDiv) {
-      var nameEl = txtDiv.querySelector('div:first-child');
-      var subEl = txtDiv.querySelector('div:last-child');
-      if (nameEl) nameEl.className = 'text-sm font-bold ' + (isTraining ? 'text-amber-700' : 'text-slate-700');
-      if (subEl) subEl.className = 'text-[10px] ' + (isTraining ? 'text-amber-500' : 'text-slate-400');
-    }
-    var pill = toggle.querySelector('.rounded-full:last-child');
-    if (pill) {
-      pill.className = 'ml-auto w-10 h-6 rounded-full transition-colors flex items-center px-0.5 ' + (isTraining ? 'bg-amber-400' : 'bg-slate-200');
-      var knob = pill.querySelector('div');
-      if (knob) knob.className = 'w-5 h-5 rounded-full bg-white shadow transition-transform ' + (isTraining ? 'translate-x-4' : '');
-    }
-  }
+  auditState.view = 'meta';
+  renderMetaView();
 };
 
 document.addEventListener('click', function(e) {
@@ -216,9 +209,21 @@ document.addEventListener('click', function(e) {
 });
 
 window.beginAudit = function() {
-  if (!auditState || !auditState.branchId) { alert('Select a store first.'); return; }
   if (!_auditQB) { alert('Question bank still loading...'); return; }
-  auditState.email = (document.getElementById('metaEmail') || {}).value || '';
+  if (!auditState) { alert('Something went wrong — please go back and try again.'); return; }
+
+  if (auditState.isTraining) {
+    var customName = (document.getElementById('trainingStoreInput') || {}).value || '';
+    if (!customName.trim()) { alert('Enter a store name for this training audit.'); return; }
+    auditState.branchId = '__training';
+    auditState.storeName = customName.trim();
+    auditState.email = (document.getElementById('metaEmail') || {}).value || '';
+    auditState.areaManager = 'Training';
+  } else {
+    if (!auditState.branchId) { alert('Select a store first.'); return; }
+    auditState.email = (document.getElementById('metaEmail') || {}).value || '';
+  }
+
   auditState.manager = (document.getElementById('metaManager') || {}).value || '';
   auditState.auditor = (document.getElementById('metaAuditor') || {}).value || 'Blake Lowis';
   auditState.date = (document.getElementById('metaDate') || {}).value || new Date().toISOString().slice(0, 10);
