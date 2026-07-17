@@ -125,3 +125,24 @@ input, select, textarea {
 button:active, .active\:shadow-md:active {
   transform: scale(0.98);
 }
+
+/* ── Action review highlight animation ─────────────────────── */
+@keyframes ap-highlight-fade {
+  0%   { background-color: rgba(0,168,142,0.15); box-shadow: 0 0 0 2px rgba(0,168,142,0.3); }
+  100% { background-color: transparent; box-shadow: none; }
+}
+.ap-highlight {
+  animation: ap-highlight-fade 2s ease-out;
+}
+
+/* ── Category expand/collapse ──────────────────────────────── */
+.cat-questions-enter { animation: slideDown 0.2s ease-out; }
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Print styles for PDF ──────────────────────────────────── */
+@media print {
+  .no-print, header, .ap-highlight { display: none !important; }
+}
