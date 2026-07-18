@@ -1,4 +1,5 @@
 let db;
+let _dbFailed = false;
 
 const req = indexedDB.open('BirdsAuditMobile_v2', 2);
 req.onupgradeneeded = e => {
@@ -15,9 +16,17 @@ req.onsuccess = e => {
   console.log('[DB] Ready');
   if (typeof onDBReady === 'function') onDBReady();
 };
+req.onerror = e => {
+  console.error('[DB] Failed to open:', e.target.error);
+  _dbFailed = true;
+  if (typeof onDBReady === 'function') onDBReady();
+};
+req.onblocked = () => {
+  console.warn('[DB] Open blocked — close other tabs using this app');
+};
 
-const idbGetAll = s => new Promise(res => { const r = db.transaction(s).objectStore(s).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); });
-const idbGet = (s, k) => new Promise(res => { const r = db.transaction(s).objectStore(s).get(k); r.onsuccess = () => res(r.result || null); r.onerror = () => res(null); });
-const idbAdd = (s, v) => new Promise(res => { try { const r = db.transaction(s, 'readwrite').objectStore(s).add(v); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (e) { res(null); } });
-const idbPut = (s, v) => new Promise(res => { const r = db.transaction(s, 'readwrite').objectStore(s).put(v); r.onsuccess = () => res(true); r.onerror = () => res(false); });
-const idbClear = s => new Promise(res => { const r = db.transaction(s, 'readwrite').objectStore(s).clear(); r.onsuccess = () => res(true); r.onerror = () => res(false); });
+const idbGetAll = s => { if (!db) return Promise.resolve([]); try { return new Promise(res => { const r = db.transaction(s).objectStore(s).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); }); } catch(e) { return Promise.resolve([]); } };
+const idbGet = (s, k) => { if (!db) return Promise.resolve(null); try { return new Promise(res => { const r = db.transaction(s).objectStore(s).get(k); r.onsuccess = () => res(r.result || null); r.onerror = () => res(null); }); } catch(e) { return Promise.resolve(null); } };
+const idbAdd = (s, v) => { if (!db) return Promise.resolve(null); try { return new Promise(res => { const r = db.transaction(s, 'readwrite').objectStore(s).add(v); r.onsuccess = () => res(r.result); r.onerror = () => res(null); }); } catch(e) { return Promise.resolve(null); } };
+const idbPut = (s, v) => { if (!db) return Promise.resolve(false); try { return new Promise(res => { const r = db.transaction(s, 'readwrite').objectStore(s).put(v); r.onsuccess = () => res(true); r.onerror = () => res(false); }); } catch(e) { return Promise.resolve(false); } };
+const idbClear = s => { if (!db) return Promise.resolve(false); try { return new Promise(res => { const r = db.transaction(s, 'readwrite').objectStore(s).clear(); r.onsuccess = () => res(true); r.onerror = () => res(false); }); } catch(e) { return Promise.resolve(false); } };
