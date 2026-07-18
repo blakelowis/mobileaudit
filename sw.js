@@ -15,7 +15,15 @@ var ASSETS = [
   './jszip.min.js',
   './jspdf.umd.min.js',
   './jspdf.plugin.autotable.min.js',
-  './html2canvas.min.js'
+  './html2canvas.min.js',
+  './fonts/fonts.css',
+  './fonts/inter-v20-latin-regular.woff2',
+  './fonts/inter-v20-latin-600.woff2',
+  './fonts/inter-v20-latin-700.woff2',
+  './fonts/inter-v20-latin-800.woff2',
+  './fonts/outfit-v15-latin-regular.woff2',
+  './fonts/outfit-v15-latin-700.woff2',
+  './fonts/outfit-v15-latin-800.woff2'
 ];
 
 self.addEventListener('install', function(e) {
