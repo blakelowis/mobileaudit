@@ -136,7 +136,7 @@ function auditGetActions() {
     sec.categories.forEach(function(cat) {
       cat.questions.forEach(function(q) {
         if (q.action && q.action.enabled) {
-          items.push({ sector: sec.title, category: cat.name, questionId: q.id, question: q.text, answer: q.answer, weight: q.weight, action: q.action, photos: [q.photoThumb, q.extraPhotoThumb, q.extraPhoto2Thumb] });
+          items.push({ sector: sec.title, category: cat.name, questionId: q.id, question: q.text, answer: q.answer, weight: q.weight, action: q.action, photos: [q.photo, q.extraPhoto, q.extraPhoto2] });
         }
       });
     });

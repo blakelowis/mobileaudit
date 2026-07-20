@@ -60,6 +60,7 @@ async function exportAndDownload() {
     var sec = auditState.sectors[sid];
     sec.categories.forEach(function(cat) {
       cat.questions.forEach(function(q) {
+        if (q.answer !== 'Pass' && q.answer !== 'Fail') return;
         sessionData.questions.push({
           sectorId: sid,
           sector: sec.title,
@@ -103,6 +104,7 @@ async function exportAndDownload() {
     var sec = auditState.sectors[sid];
     sec.categories.forEach(function(cat) {
       cat.questions.forEach(function(q) {
+        if (q.answer !== 'Pass' && q.answer !== 'Fail') return;
         var allPhotos = [
           { data: q.photo, thumb: q.photoThumb, suffix: '' },
           { data: q.extraPhoto, thumb: q.extraPhotoThumb, suffix: '_extra' },
@@ -253,25 +255,28 @@ async function generateAuditPDFBlob() {
   doc.text('Score Band: ' + bandLabel, M, y);
   y += 10;
 
-  // Sector score cards
+  // Sector score cards — only sectors with answered questions
   checkPage(30);
   doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(40, 40, 40);
   doc.text('Sector Scores', M, y); y += 6;
-  var secW = (CW - 4 * 2) / 6;
-  overall.sectorData.forEach(function(s, idx) {
-    var sx = M + idx * (secW + 2);
-    var rag = s.metrics.failed ? [255, 200, 200] : s.metrics.penalisedPct >= 95 ? [209, 250, 229] : s.metrics.penalisedPct >= 90 ? [220, 252, 231] : s.metrics.penalisedPct >= 80 ? [254, 243, 199] : [254, 226, 226];
-    doc.setFillColor(rag[0], rag[1], rag[2]);
-    doc.roundedRect(sx, y, secW, 18, 2, 2, 'F');
-    doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(60, 60, 60);
-    doc.text(s.metrics.penalisedPct + '%', sx + secW / 2, y + 8, { align: 'center' });
-    doc.setFontSize(6); doc.setFont(undefined, 'normal');
-    doc.text(s.title, sx + secW / 2, y + 14, { align: 'center' });
-    if (s.metrics.failed) {
-      doc.setFontSize(5); doc.setFont(undefined, 'bold'); doc.setTextColor(200, 50, 50);
-      doc.text('FAILED', sx + secW / 2, y + 17, { align: 'center' });
-    }
-  });
+  var answeredSectors = overall.sectorData.filter(function(s) { return s.metrics.answered > 0; });
+  if (answeredSectors.length > 0) {
+    var secW = Math.min((CW - 4 * 2) / answeredSectors.length, 35);
+    answeredSectors.forEach(function(s, idx) {
+      var sx = M + idx * (secW + 2);
+      var rag = s.metrics.failed ? [255, 200, 200] : s.metrics.penalisedPct >= 95 ? [209, 250, 229] : s.metrics.penalisedPct >= 90 ? [220, 252, 231] : s.metrics.penalisedPct >= 80 ? [254, 243, 199] : [254, 226, 226];
+      doc.setFillColor(rag[0], rag[1], rag[2]);
+      doc.roundedRect(sx, y, secW, 18, 2, 2, 'F');
+      doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(60, 60, 60);
+      doc.text(s.metrics.penalisedPct + '%', sx + secW / 2, y + 8, { align: 'center' });
+      doc.setFontSize(6); doc.setFont(undefined, 'normal');
+      doc.text(s.title, sx + secW / 2, y + 14, { align: 'center' });
+      if (s.metrics.failed) {
+        doc.setFontSize(5); doc.setFont(undefined, 'bold'); doc.setTextColor(200, 50, 50);
+        doc.text('FAILED', sx + secW / 2, y + 17, { align: 'center' });
+      }
+    });
+  }
   y += 25;
 
   // === PAGE 2: Action Plan ===
@@ -287,12 +292,17 @@ async function generateAuditPDFBlob() {
   if (actions.length > 0) {
     for (var ai = 0; ai < actions.length; ai++) {
       var item = actions[ai];
-      checkPage(35);
+      var actionPhotos = (item.photos || []).filter(Boolean);
+      var photoRows = actionPhotos.length;
+
+      // Height: header + text + photo space
+      var cardH = 30 + (photoRows > 0 ? 60 : 0);
+      checkPage(cardH);
       doc.setFillColor(255, 251, 235);
-      doc.roundedRect(M, y, CW, 28, 2, 2, 'F');
+      doc.roundedRect(M, y, CW, cardH, 2, 2, 'F');
       if (item.action.critical) {
         doc.setFillColor(254, 226, 226);
-        doc.roundedRect(M, y, 4, 28, 1, 1, 'F');
+        doc.roundedRect(M, y, 4, cardH, 1, 1, 'F');
       }
       doc.setFontSize(7); doc.setFont(undefined, 'bold'); doc.setTextColor(40, 40, 40);
       doc.text(item.sector + ' \u2014 ' + item.category, M + 7, y + 5);
@@ -305,7 +315,18 @@ async function generateAuditPDFBlob() {
       doc.text(descLines, M + 7, y + 11);
       doc.setFontSize(7); doc.setTextColor(100, 100, 100);
       doc.text('Responsible: ' + (item.action.person || '\u2014') + '  |  Status: ' + (item.action.status || 'Open'), M + 7, y + 22);
-      y += 30;
+
+      if (photoRows > 0) {
+        var px = M + 7;
+        var py = y + 26;
+        actionPhotos.forEach(function(ph) {
+          var ext = ph.indexOf('png') > -1 ? 'PNG' : 'JPEG';
+          var pw = 55, phH = 55;
+          doc.addImage(ph, ext, px, py, pw, phH);
+          px += pw + 4;
+        });
+      }
+      y += cardH + 4;
     }
   } else {
     doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(130, 130, 130);
@@ -313,13 +334,13 @@ async function generateAuditPDFBlob() {
     y += 10;
   }
 
-  // === PAGE 3: Comments & Notes ===
+  // === PAGE 3: Comments & Notes (only Pass/Fail questions) ===
   var comments = [];
   auditSectorKeys().forEach(function(sid) {
     var sec = auditState.sectors[sid];
     sec.categories.forEach(function(cat) {
       cat.questions.forEach(function(q) {
-        if (q.comment || q.photo || q.extraPhoto || q.extraPhoto2) {
+        if ((q.answer === 'Pass' || q.answer === 'Fail') && (q.comment || q.photo || q.extraPhoto || q.extraPhoto2)) {
           comments.push({ sector: sec.title, category: cat.name, question: q.text, comment: q.comment, photos: [q.photo, q.extraPhoto, q.extraPhoto2].filter(Boolean) });
         }
       });
@@ -335,30 +356,47 @@ async function generateAuditPDFBlob() {
     y = 26;
 
     comments.forEach(function(c) {
-      checkPage(30);
+      var commentPhotos = (c.photos || []).filter(Boolean);
+      var commentPhotoRows = commentPhotos.length;
+      var comH = 26 + (c.comment ? 10 : 0) + (commentPhotoRows > 0 ? 60 : 0);
+
+      checkPage(comH);
+
       doc.setFillColor(248, 250, 252);
-      doc.roundedRect(M, y, CW, 22, 2, 2, 'F');
+      doc.roundedRect(M, y, CW, comH, 2, 2, 'F');
       doc.setFontSize(7); doc.setFont(undefined, 'bold'); doc.setTextColor(0, 140, 120);
       doc.text(c.sector + ' > ' + c.category, M + 4, y + 5);
       doc.setFontSize(7); doc.setFont(undefined, 'normal'); doc.setTextColor(60, 60, 60);
       doc.text(c.question.substring(0, 80), M + 4, y + 10);
+      var commentTextY = y + 15;
       if (c.comment) {
         doc.setFontSize(7); doc.setTextColor(80, 80, 80);
         var commentLines = doc.splitTextToSize(c.comment, CW - 10);
-        doc.text(commentLines, M + 4, y + 15);
-        y += 4 + commentLines.length * 3;
+        doc.text(commentLines, M + 4, commentTextY);
+        commentTextY += commentLines.length * 4;
       }
-      y += 4;
+      if (commentPhotoRows > 0) {
+        var comPx = M + 4;
+        var comPy = Math.max(commentTextY, y + comH - 30);
+        if (comPy < y + 18) comPy = y + 18;
+        commentPhotos.forEach(function(ph) {
+          var ext = ph.indexOf('png') > -1 ? 'PNG' : 'JPEG';
+          var pw = 55, phH = 55;
+          doc.addImage(ph, ext, comPx, comPy, pw, phH);
+          comPx += pw + 4;
+        });
+      }
+      y += comH + 3;
     });
   }
 
-  // === PAGE 4+: All Answered Questions ===
+  // === PAGE 4+: Only Pass/Fail questions (omit N/A/unanswered) ===
   doc.addPage(); y = M;
   doc.setFillColor(0, 168, 142);
   doc.rect(0, 0, W, 18, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14); doc.setFont(undefined, 'bold');
-  doc.text('All Answered Questions', M, 12);
+  doc.text('Answered Questions', M, 12);
   y = 26;
 
   var compliantRows = [];
@@ -367,10 +405,10 @@ async function generateAuditPDFBlob() {
     var sec = auditState.sectors[sid];
     sec.categories.forEach(function(cat) {
       cat.questions.forEach(function(q) {
-        if (q.answer === 'Pass' || q.answer === 'NA') {
-          compliantRows.push([sec.title, cat.name, q.text.substring(0, 65), q.answer, q.weight + '']);
+        if (q.answer === 'Pass') {
+          compliantRows.push([sec.title, cat.name, q.text.substring(0, 65), 'Pass', q.weight + '']);
         } else if (q.answer === 'Fail') {
-          nonCompliantRows.push([sec.title, cat.name, q.text.substring(0, 65), q.answer, q.weight + '']);
+          nonCompliantRows.push([sec.title, cat.name, q.text.substring(0, 65), 'Fail', q.weight + '']);
         }
       });
     });

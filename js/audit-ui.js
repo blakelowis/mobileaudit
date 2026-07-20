@@ -82,6 +82,19 @@ function renderMetaView() {
     emailPlaceholder = 'e.g. trainee@birdsofderby.co.uk';
     managerPlaceholder = 'Store manager name';
     auditorDefault = escapeHtml(meta.auditor || '');
+  } else {
+    storeFieldHTML =
+      '<div id="storePickerWrap" class="relative">' +
+        '<label class="text-xs font-black text-slate-500 uppercase">Store *</label>' +
+        '<button type="button" onclick="openStorePicker()" class="w-full border border-slate-200 rounded-xl px-4 py-3.5 text-sm mt-1 text-left flex items-center justify-between">' +
+          '<span id="storePickerLabel" class="' + (meta.branchId ? 'text-slate-800 font-bold' : 'text-slate-400') + '">' + (meta.branchId ? escapeHtml(meta.storeName) : 'Select a store...') + '</span>' +
+          '<svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>' +
+        '</button>' +
+        '<div id="storePickerDropdown" class="hidden absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-hidden">' +
+          '<div class="p-2 border-b border-slate-100"><input id="storePickerSearch" type="text" placeholder="Search stores..." oninput="filterStorePicker(this.value)" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-emerald-400"></div>' +
+          '<div id="storePickerList" class="overflow-y-auto max-h-48"></div>' +
+        '</div>' +
+      '</div>';
   }
 
   main.innerHTML = `
