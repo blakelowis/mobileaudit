@@ -185,7 +185,7 @@ async function generateAuditPDFBlob() {
 
   // === PAGE 1: Cover & Scorecard ===
   // Green header band
-  doc.setFillColor(0, 168, 142);
+  doc.setFillColor(91, 140, 122);
   doc.rect(0, 0, W, 32, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(20);
@@ -195,6 +195,7 @@ async function generateAuditPDFBlob() {
   doc.setFont(undefined, 'normal');
   var storeLabel = auditState.storeName + (isTraining ? ' [TRAINING]' : '');
   doc.text(storeLabel + ' \u2014 ' + auditState.date, M, 22);
+  if (window.__pdfLogo) { try { doc.addImage(window.__pdfLogo, 'PNG', W - M - 36, 2, 32, 32); } catch(e){} }
   y = 40;
 
   // Metadata grid
@@ -220,7 +221,7 @@ async function generateAuditPDFBlob() {
     checkPage(15);
     doc.setFillColor(240, 253, 250);
     doc.roundedRect(M, y, CW, 14, 2, 2, 'F');
-    doc.setFontSize(8); doc.setFont(undefined, 'bold'); doc.setTextColor(0, 140, 120);
+    doc.setFontSize(8); doc.setFont(undefined, 'bold'); doc.setTextColor(91, 140, 122);
     doc.text('Audit Summary', M + 4, y + 5);
     doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.setTextColor(60, 60, 60);
     var lines = doc.splitTextToSize(auditState.summary, CW - 10);
@@ -234,7 +235,7 @@ async function generateAuditPDFBlob() {
   doc.setFillColor(240, 253, 250);
   doc.roundedRect(M, y, CW, 28, 3, 3, 'F');
   doc.setFontSize(32); doc.setFont(undefined, 'bold');
-  doc.setTextColor(0, 168, 142);
+  doc.setTextColor(91, 140, 122);
   doc.text(overall.pct + '%', M + 8, y + 20);
   doc.setFontSize(10); doc.setTextColor(100, 100, 100);
   doc.text('Overall Score', M + 55, y + 12);
@@ -281,7 +282,7 @@ async function generateAuditPDFBlob() {
 
   // === PAGE 2: Action Plan ===
   doc.addPage(); y = M;
-  doc.setFillColor(0, 168, 142);
+  doc.setFillColor(91, 140, 122);
   doc.rect(0, 0, W, 18, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14); doc.setFont(undefined, 'bold');
@@ -348,7 +349,7 @@ async function generateAuditPDFBlob() {
   });
   if (comments.length > 0) {
     doc.addPage(); y = M;
-    doc.setFillColor(0, 168, 142);
+    doc.setFillColor(91, 140, 122);
     doc.rect(0, 0, W, 18, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(14); doc.setFont(undefined, 'bold');
@@ -364,7 +365,7 @@ async function generateAuditPDFBlob() {
 
       doc.setFillColor(248, 250, 252);
       doc.roundedRect(M, y, CW, comH, 2, 2, 'F');
-      doc.setFontSize(7); doc.setFont(undefined, 'bold'); doc.setTextColor(0, 140, 120);
+      doc.setFontSize(7); doc.setFont(undefined, 'bold'); doc.setTextColor(91, 140, 122);
       doc.text(c.sector + ' > ' + c.category, M + 4, y + 5);
       doc.setFontSize(7); doc.setFont(undefined, 'normal'); doc.setTextColor(60, 60, 60);
       doc.text(c.question.substring(0, 80), M + 4, y + 10);
@@ -392,7 +393,7 @@ async function generateAuditPDFBlob() {
 
   // === PAGE 4+: Only Pass/Fail questions (omit N/A/unanswered) ===
   doc.addPage(); y = M;
-  doc.setFillColor(0, 168, 142);
+  doc.setFillColor(91, 140, 122);
   doc.rect(0, 0, W, 18, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14); doc.setFont(undefined, 'bold');

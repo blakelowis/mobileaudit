@@ -156,7 +156,7 @@ function auditTotalAnswered() {
 }
 
 function auditScoreRag(pct) {
-  if (pct >= 95) return 'text-emerald-600';
+  if (pct >= 95) return 'birds-green';
   if (pct >= 90) return 'text-green-600';
   if (pct >= 80) return 'text-amber-600';
   return 'text-red-600';
@@ -172,6 +172,51 @@ function auditCategoryMetrics(sid, catId) {
     if (q.answer === 'Pass' || q.answer === 'Fail') { max += q.weight; if (q.answer === 'Pass') accrued += q.weight; }
   });
   return { accrued: accrued, max: max, pct: max ? Math.round((accrued / max) * 100) : 0 };
+}
+
+function auditSetComment(sid, cid, qid, val) {
+  var q = findAuditQ(sid, cid, qid);
+  if (q) q.comment = val;
+}
+
+function auditCollectComments() {
+  var items = [];
+  auditSectorKeys().forEach(function(sid) {
+    var sec = auditState.sectors[sid];
+    sec.categories.forEach(function(cat) {
+      cat.questions.forEach(function(q) {
+        if (!q.comment || !q.comment.trim()) return;
+        if (q.action && q.action.enabled) return;
+        items.push({ sector: sec.title, category: cat.name, question: q.text, answer: q.answer, comment: q.comment, photoThumb: q.photo, extraPhotoThumb: q.extraPhoto, extraPhoto2Thumb: q.extraPhoto2 });
+      });
+    });
+  });
+  return items;
+}
+
+function auditCollectAllComments() {
+  var withPhotos = [];
+  var withoutPhotos = [];
+  auditSectorKeys().forEach(function(sid) {
+    var sec = auditState.sectors[sid];
+    sec.categories.forEach(function(cat) {
+      cat.questions.forEach(function(q) {
+        if (!q.comment && !q.photo && !q.extraPhoto && !q.extraPhoto2) return;
+        if (q.answer !== 'Pass' && q.answer !== 'Fail') return;
+        if (q.action && q.action.enabled) return;
+        var item = {
+          sector: sec.title, category: cat.name,
+          question: q.text, answer: q.answer,
+          comment: q.comment || '',
+          photoThumb: q.photo, extraPhotoThumb: q.extraPhoto, extraPhoto2Thumb: q.extraPhoto2
+        };
+        var hasPhotos = item.photoThumb || item.extraPhotoThumb || item.extraPhoto2Thumb;
+        if (hasPhotos) withPhotos.push(item);
+        else withoutPhotos.push(item);
+      });
+    });
+  });
+  return { withPhotos: withPhotos, withoutPhotos: withoutPhotos };
 }
 
 function findAuditQ(sid, cid, qid) {

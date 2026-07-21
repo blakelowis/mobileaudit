@@ -3,41 +3,9 @@
 var _expandedCategories = {};
 
 function renderHome() {
-  var main = document.getElementById('mainView');
-  main.innerHTML = `
-    <div class="max-w-lg mx-auto">
-      <div class="text-center py-8">
-        <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg class="w-10 h-10 text-emerald-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-        </div>
-        <h1 class="text-3xl font-black outfit birds-green mb-2">Birds Audit</h1>
-        <p class="text-slate-400 font-bold text-sm mb-8">Retail store audit — mobile</p>
-        <button onclick="startNewAudit()" class="w-full bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-black py-5 rounded-2xl text-lg shadow-lg transition-colors">
-          Start New Audit
-        </button>
-      </div>
-      <div id="auditHistory"></div>
-    </div>`;
-  loadAuditHistory();
-}
-
-async function loadAuditHistory() {
-  var el = document.getElementById('auditHistory');
-  if (!el) return;
-  var rows = await idbGetAll('history');
-  var trainingRows = await idbGetAll('training_audits');
-  var allRows = rows.concat(trainingRows.map(function(r) { r._isTraining = true; return r; }));
-  if (!allRows.length) { el.innerHTML = ''; return; }
-  allRows.sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); });
-  var cards = allRows.slice(0, 20).map(function(r) {
-    var rag = r.score >= 95 ? 'text-emerald-600' : r.score >= 90 ? 'text-green-600' : r.score >= 80 ? 'text-amber-600' : 'text-red-600';
-    var trainingBadge = r._isTraining || r.isTraining ? ' <span class="bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">Training</span>' : '';
-    return '<div class="bg-white rounded-xl border border-slate-200 p-4 mb-3 flex items-center justify-between">' +
-      '<div><div class="font-black text-slate-800 text-sm">' + escapeHtml(r.store) + trainingBadge + '</div>' +
-      '<div class="text-xs text-slate-400 font-bold">' + escapeHtml(r.date) + ' &bull; ' + escapeHtml(r.auditor) + '</div></div>' +
-      '<div class="text-2xl font-black ' + rag + '">' + (r.score != null ? r.score + '%' : '—') + '</div></div>';
-  }).join('');
-  el.innerHTML = '<h3 class="font-black text-slate-800 text-sm uppercase tracking-widest text-slate-400 mb-3">Recent Audits</h3>' + cards;
+  auditState = { view: 'meta', branchId: null, storeName: '', areaManager: '', email: '', manager: '', auditor: 'Blake Lowis', date: new Date().toISOString().slice(0, 10), summary: '', sectorId: null, categoryId: null, sectors: {}, isTraining: false };
+  _expandedCategories = {};
+  renderAuditPerform();
 }
 
 // === BREADCRUMBS ===
@@ -46,13 +14,13 @@ function renderCrumbs() {
   if (auditState.view === 'sectors' || auditState.view === 'meta') {
     html += '<span class="text-slate-800">Sectors</span>';
   } else if (auditState.view === 'categories') {
-    html += '<button onclick="goSectors()" class="text-emerald-600 active:text-emerald-800">Sectors</button>';
+    html += '<button onclick="goSectors()" class="birds-green active:text-slate-600">Sectors</button>';
     html += '<span class="text-slate-300">/</span>';
     html += '<span class="text-slate-800">' + escapeHtml(auditState.sectors[auditState.sectorId].title) + '</span>';
   } else if (auditState.view === 'questions') {
-    html += '<button onclick="goSectors()" class="text-emerald-600 active:text-emerald-800">Sectors</button>';
+    html += '<button onclick="goSectors()" class="birds-green active:text-slate-600">Sectors</button>';
     html += '<span class="text-slate-300">/</span>';
-    html += '<button onclick="goSector(auditState.sectorId)" class="text-emerald-600 active:text-emerald-800">' + escapeHtml(auditState.sectors[auditState.sectorId].title) + '</button>';
+    html += '<button onclick="goSector(auditState.sectorId)" class="birds-green active:text-slate-600">' + escapeHtml(auditState.sectors[auditState.sectorId].title) + '</button>';
     html += '<span class="text-slate-300">/</span>';
     var cat = auditState.sectors[auditState.sectorId].categories.find(function(c) { return c.id === auditState.categoryId; });
     html += '<span class="text-slate-800">' + escapeHtml(cat ? cat.name : '') + '</span>';
@@ -65,7 +33,7 @@ function renderCrumbs() {
 function renderMetaView() {
   var main = document.getElementById('mainView');
   var meta = auditState || {};
-  var qbInfo = _auditQB ? '<span class="text-emerald-600 font-bold">Loaded (' + Object.keys(_auditQB).length + ' sectors)</span>' : '<span class="text-amber-600 font-bold">Loading...</span>';
+  var qbInfo = _auditQB ? '<span class="birds-green font-bold">Loaded (' + Object.keys(_auditQB).length + ' sectors)</span>' : '<span class="text-amber-600 font-bold">Loading...</span>';
   var isTraining = meta.isTraining || false;
 
   var storeFieldHTML = '';
@@ -91,7 +59,7 @@ function renderMetaView() {
           '<svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>' +
         '</button>' +
         '<div id="storePickerDropdown" class="hidden absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-64 overflow-hidden">' +
-          '<div class="p-2 border-b border-slate-100"><input id="storePickerSearch" type="text" placeholder="Search stores..." oninput="filterStorePicker(this.value)" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-emerald-400"></div>' +
+          '<div class="p-2 border-b border-slate-100"><input id="storePickerSearch" type="text" placeholder="Search stores..." oninput="filterStorePicker(this.value)" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-birds-green"></div>' +
           '<div id="storePickerList" class="overflow-y-auto max-h-48"></div>' +
         '</div>' +
       '</div>';
@@ -153,12 +121,15 @@ function renderMetaView() {
         </div>
       </div>
 
-      <button onclick="beginAudit()" id="metaStartBtn" class="w-full ${isTraining ? 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700' : 'bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700'} disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-5 rounded-2xl text-lg shadow-lg transition-colors">
+      <button onclick="beginAudit()" id="metaStartBtn" class="w-full ${isTraining ? 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700' : 'bg-birds hover:bg-slate-700 active:bg-slate-800'} disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-5 rounded-2xl text-lg shadow-lg transition-colors">
         ${isTraining ? 'Start Training Audit' : 'Start Audit'}
       </button>
+
+      <div id="auditHistory" class="mt-6"></div>
     </div>`;
 
   if (!isTraining) renderStorePickerList('');
+  loadAuditHistory();
 }
 
 window.openStorePicker = function() {
@@ -188,12 +159,12 @@ window.renderStorePickerList = function(q) {
   var selected = auditState ? auditState.branchId : null;
   el.innerHTML = filtered.map(function(s) {
     var isActive = s.id === selected;
-    return '<button onclick="pickStore(\'' + s.id + '\')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ' + (isActive ? 'bg-emerald-50' : 'active:bg-slate-100') + '">' +
+    return '<button onclick="pickStore(\'' + s.id + '\')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ' + (isActive ? 'bg-birds-light' : 'active:bg-slate-100') + '">' +
       '<div class="flex-1 min-w-0">' +
-        '<div class="text-sm font-bold ' + (isActive ? 'text-emerald-700' : 'text-slate-800') + ' truncate">' + escapeHtml(s.name) + '</div>' +
-        '<div class="text-[10px] ' + (isActive ? 'text-emerald-500' : 'text-slate-400') + '">' + escapeHtml(s.am) + '</div>' +
+        '<div class="text-sm font-bold ' + (isActive ? 'birds-green' : 'text-slate-800') + ' truncate">' + escapeHtml(s.name) + '</div>' +
+        '<div class="text-[10px] ' + (isActive ? 'birds-green' : 'text-slate-400') + '">' + escapeHtml(s.am) + '</div>' +
       '</div>' +
-      (isActive ? '<svg class="w-5 h-5 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>' : '') +
+      (isActive ? '<svg class="w-5 h-5 birds-green flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>' : '') +
     '</button>';
   }).join('');
   if (!filtered.length) {
@@ -286,7 +257,7 @@ function renderSectorView() {
   var actionReviewHTML = '';
   if (actions.length > 0) {
     var actionRows = actions.map(function(a) {
-      var statusCls = (a.action.status || 'Open') === 'Open' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+      var statusCls = (a.action.status || 'Open') === 'Open' ? 'bg-amber-100 text-amber-700' : 'bg-birds-light birds-green';
       var critBadge = a.action.critical ? '<span class="bg-red-100 text-red-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">CRITICAL</span> ' : '';
       var photoIndicator = a.photos.filter(Boolean).length > 0 ? '<span class="text-slate-400">' + a.photos.filter(Boolean).length + '</span>' : '';
       return '<tr onclick="jumpToQuestion(\'' + a.questionId + '\')" class="border-b border-slate-100 active:bg-slate-50 cursor-pointer">' +
@@ -360,10 +331,12 @@ function renderSectorView() {
 
       ${actionReviewHTML}
 
+      ${commentReviewHTML()}
+
       <h3 class="font-black text-slate-800 text-sm uppercase tracking-widest text-slate-400 mb-3">Sectors</h3>
       <div class="space-y-3 mb-6">${sectorCards}</div>
 
-      <button onclick="completeAudit()" class="w-full bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-black py-5 rounded-2xl text-lg shadow-lg transition-colors">
+      <button onclick="completeAudit()" class="w-full bg-birds hover:bg-slate-700 active:bg-slate-800 text-white font-black py-5 rounded-2xl text-lg shadow-lg transition-colors">
         Complete Audit
       </button>
     </div>`;
@@ -377,6 +350,60 @@ window.toggleActionReview = function() {
   if (body) body.classList.toggle('hidden', !_actionReviewOpen);
   if (chevron) chevron.classList.toggle('rotate-180', _actionReviewOpen);
 };
+
+var _commentReviewOpen = false;
+window.toggleCommentReview = function() {
+  _commentReviewOpen = !_commentReviewOpen;
+  var body = document.getElementById('commentReviewBody');
+  var chevron = document.getElementById('commentReviewChevron');
+  if (body) body.classList.toggle('hidden', !_commentReviewOpen);
+  if (chevron) chevron.classList.toggle('rotate-180', _commentReviewOpen);
+};
+
+function commentReviewHTML() {
+  var all = auditCollectAllComments();
+  var items = all.withPhotos.concat(all.withoutPhotos);
+  if (!items.length) return '';
+  var rows = items.map(function(c) {
+    var photoIndicators = '';
+    if (c.photoThumb || c.extraPhotoThumb || c.extraPhoto2Thumb) {
+      [c.photoThumb, c.extraPhotoThumb, c.extraPhoto2Thumb].filter(Boolean).forEach(function(ph) {
+        photoIndicators += '<img src="' + ph + '" class="w-8 h-8 rounded object-cover border border-slate-200">';
+      });
+    }
+    return '<tr class="border-b border-slate-100">' +
+      '<td class="py-2 px-2 text-[10px] font-bold text-slate-600 max-w-[60px] truncate">' + escapeHtml(c.sector) + '</td>' +
+      '<td class="py-2 px-2 text-[11px] text-slate-800 max-w-[120px] truncate">' + escapeHtml(c.question.substring(0, 40)) + '</td>' +
+      '<td class="py-2 px-2 text-[10px] text-slate-500 max-w-[80px] truncate">' + escapeHtml(c.comment.substring(0, 30)) + '</td>' +
+      '<td class="py-2 px-2 text-center">' + photoIndicators + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm mb-4 overflow-hidden">' +
+    '<button onclick="toggleCommentReview()" class="w-full flex items-center justify-between px-5 py-4 active:bg-slate-50 transition-colors">' +
+      '<div class="flex items-center gap-2">' +
+        '<h3 class="font-black text-slate-800 text-sm">Comment Review</h3>' +
+        '<span class="bg-slate-100 text-slate-600 text-[10px] font-black px-2 py-0.5 rounded-full">' + items.length + ' items</span>' +
+      '</div>' +
+      '<svg id="commentReviewChevron" class="w-5 h-5 text-slate-400 transition-transform ' + (_commentReviewOpen ? 'rotate-180' : '') + '" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>' +
+    '</button>' +
+    '<div id="commentReviewBody" class="' + (_commentReviewOpen ? '' : 'hidden') + '">' +
+      '<div class="overflow-x-auto">' +
+        '<table class="w-full text-left">' +
+          '<thead>' +
+            '<tr class="border-b border-slate-200 bg-slate-50">' +
+              '<th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Sector</th>' +
+              '<th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Question</th>' +
+              '<th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Comment</th>' +
+              '<th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase text-center">📷</th>' +
+            '</tr>' +
+          '</thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
 
 window.jumpToQuestion = function(qid) {
   var found = null;
@@ -409,7 +436,7 @@ function renderCategoryView() {
   var meta = SECTOR_META[auditState.sectorId] || { color: 'slate' };
 
   var expandAllBtn = '<div class="flex gap-2 mb-3">' +
-    '<button onclick="expandAllCategories()" class="text-xs font-bold text-emerald-600 active:text-emerald-800 px-3 py-1.5 bg-emerald-50 rounded-lg">Expand All</button>' +
+    '<button onclick="expandAllCategories()" class="text-xs font-bold birds-green active:text-slate-600 px-3 py-1.5 bg-birds-light rounded-lg">Expand All</button>' +
     '<button onclick="collapseAllCategories()" class="text-xs font-bold text-slate-500 active:text-slate-700 px-3 py-1.5 bg-slate-100 rounded-lg">Collapse All</button>' +
   '</div>';
 
@@ -422,7 +449,7 @@ function renderCategoryView() {
     var questionsHTML = '';
     if (isOpen) {
       questionsHTML = cat.questions.map(function(q) {
-        var passCls = q.answer === 'Pass' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 active:bg-emerald-50';
+        var passCls = q.answer === 'Pass' ? 'bg-birds text-white' : 'bg-slate-100 text-slate-600 active:bg-birds-light';
         var failCls = q.answer === 'Fail' ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-600 active:bg-red-50';
         var naCls = q.answer === 'NA' ? 'bg-slate-400 text-white' : 'bg-slate-100 text-slate-600 active:bg-slate-200';
         var actionEnabled = q.action && q.action.enabled;
@@ -445,9 +472,10 @@ function renderCategoryView() {
             (q.photoThumb ? '<img src="' + q.photoThumb + '" class="w-12 h-12 rounded-lg object-cover border border-slate-200">' : '') +
             (q.extraPhotoThumb ? '<img src="' + q.extraPhotoThumb + '" class="w-12 h-12 rounded-lg object-cover border border-slate-200">' : '') +
             (q.extraPhoto2Thumb ? '<img src="' + q.extraPhoto2Thumb + '" class="w-12 h-12 rounded-lg object-cover border border-slate-200">' : '') +
-            (photos.length < 3 ? '<label class="w-12 h-12 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 active:border-emerald-400 active:text-emerald-500 cursor-pointer transition-colors text-lg">' +
+            (photos.length < 3 ? '<label class="w-12 h-12 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 active:border-birds-green active:birds-green cursor-pointer transition-colors text-lg">' +
               '<input type="file" accept="image/*" capture="environment" class="hidden" onchange="auditPhoto(\'' + auditState.sectorId + '\',\'' + cat.id + '\',\'' + q.id + '\',' + photos.length + ', event)">+</label>' : '') +
           '</div>' +
+          '<textarea onchange="auditSetComment(\'' + auditState.sectorId + '\',\'' + cat.id + '\',\'' + q.id + '\',this.value)" placeholder="Comment (optional)..." class="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 mt-1" rows="1">' + escapeHtml(q.comment || '') + '</textarea>' +
           (actionEnabled ? auditActionHTML(q, auditState.sectorId, cat.id) : '') +
         '</div>';
       }).join('');
@@ -486,7 +514,7 @@ function renderCategoryView() {
       ${renderCrumbs()}
       ${expandAllBtn}
       <div class="mb-6">${catCards}</div>
-      <button onclick="goSectors()" class="w-full bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white font-black py-4 rounded-2xl text-sm shadow-lg transition-colors mb-4">
+      <button onclick="goSectors()" class="w-full bg-birds hover:bg-slate-700 active:bg-slate-800 text-white font-black py-4 rounded-2xl text-sm shadow-lg transition-colors mb-4">
         Back to Sectors
       </button>
     </div>`;
@@ -516,7 +544,7 @@ function renderQuestionView() {
   var meta = SECTOR_META[auditState.sectorId] || { color: 'slate' };
 
   var questionsHTML = cat.questions.map(function(q) {
-    var passCls = q.answer === 'Pass' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-600 active:bg-emerald-50';
+    var passCls = q.answer === 'Pass' ? 'bg-birds text-white' : 'bg-slate-100 text-slate-600 active:bg-birds-light';
     var failCls = q.answer === 'Fail' ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-600 active:bg-red-50';
     var naCls = q.answer === 'NA' ? 'bg-slate-400 text-white' : 'bg-slate-100 text-slate-600 active:bg-slate-200';
     var actionEnabled = q.action && q.action.enabled;
@@ -539,9 +567,10 @@ function renderQuestionView() {
         (q.photoThumb ? '<img src="' + q.photoThumb + '" class="w-16 h-16 rounded-lg object-cover border border-slate-200">' : '') +
         (q.extraPhotoThumb ? '<img src="' + q.extraPhotoThumb + '" class="w-16 h-16 rounded-lg object-cover border border-slate-200">' : '') +
         (q.extraPhoto2Thumb ? '<img src="' + q.extraPhoto2Thumb + '" class="w-16 h-16 rounded-lg object-cover border border-slate-200">' : '') +
-        (photos.length < 3 ? '<label class="w-16 h-16 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 active:border-emerald-400 active:text-emerald-500 cursor-pointer transition-colors text-xl">' +
+        (photos.length < 3 ? '<label class="w-16 h-16 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 active:border-birds-green active:birds-green cursor-pointer transition-colors text-xl">' +
           '<input type="file" accept="image/*" capture="environment" class="hidden" onchange="auditPhoto(\'' + auditState.sectorId + '\',\'' + cat.id + '\',\'' + q.id + '\',' + photos.length + ', event)">+</label>' : '') +
       '</div>' +
+      '<textarea onchange="auditSetComment(\'' + auditState.sectorId + '\',\'' + cat.id + '\',\'' + q.id + '\',this.value)" placeholder="Comment (optional)..." class="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 mt-1" rows="1">' + escapeHtml(q.comment || '') + '</textarea>' +
       (actionEnabled ? auditActionHTML(q, auditState.sectorId, cat.id) : '') +
     '</div>';
   }).join('');
@@ -597,8 +626,8 @@ function renderCompleteView() {
   var trainingBadge = auditState.isTraining ? '<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-sm font-bold text-amber-700 inline-block mb-4">Training Mode &mdash; exported as TRAINING</div>' : '';
   main.innerHTML = `
     <div class="max-w-lg mx-auto text-center py-8">
-      <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-        <svg class="w-10 h-10 text-emerald-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+      <div class="w-20 h-20 bg-birds-light rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-10 h-10" style="color:#5B8C7A" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
       </div>
       <h2 class="text-3xl font-black outfit text-slate-800 mb-2">Audit Complete</h2>
       <p class="text-slate-500 mb-2 text-sm">${escapeHtml(auditState.storeName)} &mdash; ${escapeHtml(auditState.date)}</p>
@@ -623,6 +652,25 @@ function renderCompleteView() {
 }
 
 // === NAVIGATION ===
+async function loadAuditHistory() {
+  var el = document.getElementById('auditHistory');
+  if (!el) return;
+  var rows = await idbGetAll('history');
+  var trainingRows = await idbGetAll('training_audits');
+  var allRows = rows.concat(trainingRows.map(function(r) { r._isTraining = true; return r; }));
+  if (!allRows.length) { el.innerHTML = ''; return; }
+  allRows.sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); });
+  var cards = allRows.slice(0, 20).map(function(r) {
+    var rag = r.score >= 95 ? 'birds-green' : r.score >= 90 ? 'text-green-600' : r.score >= 80 ? 'text-amber-600' : 'text-red-600';
+    var trainingBadge = r._isTraining || r.isTraining ? ' <span class="bg-amber-100 text-amber-700 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">Training</span>' : '';
+    return '<div class="bg-white rounded-xl border border-slate-200 p-4 mb-3 flex items-center justify-between">' +
+      '<div><div class="font-black text-slate-800 text-sm">' + escapeHtml(r.store) + trainingBadge + '</div>' +
+      '<div class="text-xs text-slate-400 font-bold">' + escapeHtml(r.date) + ' &bull; ' + escapeHtml(r.auditor) + '</div></div>' +
+      '<div class="text-2xl font-black ' + rag + '">' + (r.score != null ? r.score + '%' : '—') + '</div></div>';
+  }).join('');
+  el.innerHTML = '<h3 class="font-black text-slate-800 text-sm uppercase tracking-widest text-slate-400 mt-6 mb-3">Recent Audits</h3>' + cards;
+}
+
 window.goHome = function() { auditState = null; _expandedCategories = {}; renderHome(); };
 window.goMeta = function() { auditState.view = 'meta'; renderAuditPerform(); };
 window.goSectors = function() { auditState.view = 'sectors'; _expandedCategories = {}; renderAuditPerform(); };
@@ -686,8 +734,4 @@ window.completeAudit = function() {
   renderAuditPerform();
 };
 
-window.startNewAudit = function() {
-  auditState = { view: 'meta', branchId: null, storeName: '', areaManager: '', email: '', manager: '', auditor: 'Blake Lowis', date: new Date().toISOString().slice(0, 10), summary: '', sectorId: null, categoryId: null, sectors: {}, isTraining: false };
-  _expandedCategories = {};
-  renderAuditPerform();
-};
+window.startNewAudit = renderHome;
