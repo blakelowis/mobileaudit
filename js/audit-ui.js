@@ -644,8 +644,11 @@ function renderCompleteView() {
         <button onclick="exportAndDownloadPDF()" class="w-full bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-bold py-4 rounded-2xl transition-colors">
           Download PDF Only
         </button>
+        <button onclick="goSectors()" class="w-full bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-bold py-4 rounded-2xl transition-colors">
+          Back to Sectors — Review / Fix
+        </button>
         <button onclick="goHome()" class="w-full text-slate-400 font-bold py-3 text-sm">
-          Back to Home
+          Back to Home (New Audit)
         </button>
       </div>
     </div>`;
