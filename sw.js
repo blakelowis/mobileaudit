@@ -1,4 +1,4 @@
-var CACHE_NAME = 'birds-audit-v3';
+var CACHE_NAME = 'birds-audit-v4';
 var ASSETS = [
   './',
   './index.html',
