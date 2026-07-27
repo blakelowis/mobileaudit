@@ -11,7 +11,13 @@ function renderHome() {
 // === BREADCRUMBS ===
 function renderCrumbs() {
   var html = '<div class="flex items-center gap-1.5 mb-4 text-xs font-bold overflow-x-auto whitespace-nowrap pb-1">';
-  if (auditState.view === 'sectors' || auditState.view === 'meta') {
+  // Home
+  html += '<button onclick="goMeta()" class="birds-green active:text-slate-600">Home</button>';
+  html += '<span class="text-slate-300">/</span>';
+
+  if (auditState.view === 'meta') {
+    html += '<span class="text-slate-800">Setup</span>';
+  } else if (auditState.view === 'sectors') {
     html += '<span class="text-slate-800">Sectors</span>';
   } else if (auditState.view === 'categories') {
     html += '<button onclick="goSectors()" class="birds-green active:text-slate-600">Sectors</button>';
@@ -24,6 +30,10 @@ function renderCrumbs() {
     html += '<span class="text-slate-300">/</span>';
     var cat = auditState.sectors[auditState.sectorId].categories.find(function(c) { return c.id === auditState.categoryId; });
     html += '<span class="text-slate-800">' + escapeHtml(cat ? cat.name : '') + '</span>';
+  } else if (auditState.view === 'complete') {
+    html += '<button onclick="goSectors()" class="birds-green active:text-slate-600">Sectors</button>';
+    html += '<span class="text-slate-300">/</span>';
+    html += '<span class="text-slate-800">Complete</span>';
   }
   html += '</div>';
   return html;
@@ -67,12 +77,13 @@ function renderMetaView() {
 
   main.innerHTML = `
     <div class="max-w-lg mx-auto">
-      <div class="flex items-center gap-3 mb-6">
+      <div class="flex items-center gap-3 mb-2">
         <button onclick="goHome()" class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 active:bg-slate-300 transition-colors">
           <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
         </button>
         <h2 class="text-2xl font-black outfit birds-green uppercase">New Audit</h2>
       </div>
+      ${renderCrumbs()}
 
       <div onclick="toggleTrainingMode()" class="w-full flex items-center gap-4 ${isTraining ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50 border border-slate-200'} rounded-2xl px-5 py-4 mb-4 cursor-pointer active:scale-[0.98] transition-all select-none">
         <div class="w-10 h-10 rounded-xl ${isTraining ? 'bg-amber-100' : 'bg-slate-200'} flex items-center justify-center flex-shrink-0">
@@ -255,18 +266,51 @@ function renderSectorView() {
 
   // Action Review section
   var actionReviewHTML = '';
+  var openActions = actions.filter(function(a) { return (a.action.status || 'Open') === 'Open'; });
+  var closedActions = actions.filter(function(a) { return (a.action.status || 'Open') === 'Closed'; });
   if (actions.length > 0) {
     var actionRows = actions.map(function(a) {
-      var statusCls = (a.action.status || 'Open') === 'Open' ? 'bg-amber-100 text-amber-700' : 'bg-birds-light birds-green';
+      var isOpen = (a.action.status || 'Open') === 'Open';
+      var statusCls = isOpen ? 'bg-amber-100 text-amber-700' : 'bg-birds-light birds-green';
       var critBadge = a.action.critical ? '<span class="bg-red-100 text-red-700 text-[9px] font-black px-1.5 py-0.5 rounded-full">CRITICAL</span> ' : '';
-      var photoIndicator = a.photos.filter(Boolean).length > 0 ? '<span class="text-slate-400">' + a.photos.filter(Boolean).length + '</span>' : '';
-      return '<tr onclick="jumpToQuestion(\'' + a.questionId + '\')" class="border-b border-slate-100 active:bg-slate-50 cursor-pointer">' +
-        '<td class="py-2.5 px-2 text-[11px] font-bold text-slate-600 max-w-[80px] truncate">' + escapeHtml(a.sector) + '</td>' +
-        '<td class="py-2.5 px-2 text-[11px] text-slate-800 max-w-[120px] truncate">' + escapeHtml(a.question.substring(0, 40)) + '</td>' +
-        '<td class="py-2.5 px-2 text-[10px] font-bold">' + critBadge + '<span class="' + statusCls + ' px-2 py-0.5 rounded-full">' + (a.action.status || 'Open') + '</span></td>' +
-        '<td class="py-2.5 px-2 text-center">' + photoIndicator + '</td>' +
+      var photos = a.photos.filter(Boolean);
+      var photoThumbs = '';
+      if (photos.length > 0) {
+        photoThumbs = photos.slice(0, 3).map(function(p) {
+          return '<img src="' + p + '" class="w-8 h-8 rounded object-cover border border-slate-200">';
+        }).join('');
+      } else {
+        photoThumbs = '<span class="text-[9px] text-slate-400">No photo</span>';
+      }
+      var personBadge = a.action.person ? '<span class="text-[9px] text-slate-500">' + escapeHtml(a.action.person) + '</span>' : '';
+      return '<tr class="border-b border-slate-100">' +
+        '<td class="py-2 px-2">' +
+          '<button onclick="jumpToQuestion(\'' + a.questionId + '\')" class="text-left w-full">' +
+            '<div class="text-[10px] font-bold text-slate-600">' + escapeHtml(a.sector) + '</div>' +
+            '<div class="text-[11px] text-slate-800 max-w-[120px] truncate">' + escapeHtml(a.question.substring(0, 35)) + '</div>' +
+            (a.action.description ? '<div class="text-[9px] text-slate-400 max-w-[120px] truncate">' + escapeHtml(a.action.description.substring(0, 30)) + '</div>' : '') +
+          '</button>' +
+        '</td>' +
+        '<td class="py-2 px-2">' + photoThumbs + '</td>' +
+        '<td class="py-2 px-2 text-center">' + critBadge + personBadge + '</td>' +
+        '<td class="py-2 px-2">' +
+          '<button onclick="toggleActionStatus(\'' + a.questionId + '\')" class="px-2 py-1 rounded-full text-[10px] font-bold ' + (isOpen ? 'bg-amber-100 text-amber-700 active:bg-amber-200' : 'bg-birds-light birds-green active:bg-birds-light') + ' transition-colors">' +
+            (isOpen ? 'Open' : 'Closed') +
+          '</button>' +
+        '</td>' +
       '</tr>';
     }).join('');
+
+    var warningBanner = '';
+    if (openActions.length > 0) {
+      warningBanner = '<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-3 flex items-center gap-3">' +
+        '<span class="text-amber-600 text-lg">\u26a0</span>' +
+        '<div class="flex-1">' +
+          '<div class="text-xs font-bold text-amber-700">' + openActions.length + ' open action' + (openActions.length > 1 ? 's' : '') + ' require review</div>' +
+          '<div class="text-[10px] text-amber-500">Review and close all actions before completing the audit</div>' +
+        '</div>' +
+      '</div>';
+    }
 
     actionReviewHTML = `
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm mb-4 overflow-hidden">
@@ -274,25 +318,27 @@ function renderSectorView() {
           <div class="flex items-center gap-2">
             <h3 class="font-black text-slate-800 text-sm">Action Review</h3>
             <span class="bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded-full">${actions.length} items</span>
+            ${openActions.length > 0 ? '<span class="bg-red-100 text-red-700 text-[10px] font-black px-2 py-0.5 rounded-full">' + openActions.length + ' open</span>' : ''}
           </div>
           <svg id="actionReviewChevron" class="w-5 h-5 text-slate-400 transition-transform ${_actionReviewOpen ? 'rotate-180' : ''}" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
         </button>
         <div id="actionReviewBody" class="${_actionReviewOpen ? '' : 'hidden'}">
+          ${warningBanner}
           <div class="overflow-x-auto">
             <table class="w-full text-left">
               <thead>
                 <tr class="border-b border-slate-200 bg-slate-50">
-                  <th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Sector</th>
                   <th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Question</th>
+                  <th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Photos</th>
+                  <th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Info</th>
                   <th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase">Status</th>
-                  <th class="py-2 px-2 text-[10px] font-black text-slate-500 uppercase text-center">📷</th>
                 </tr>
               </thead>
               <tbody>${actionRows}</tbody>
             </table>
           </div>
           <div class="px-5 py-3 border-t border-slate-100">
-            <p class="text-[10px] text-slate-400 font-bold">Tap a row to jump to that question</p>
+            <p class="text-[10px] text-slate-400 font-bold">Tap question name to jump &bull; Tap status to toggle</p>
           </div>
         </div>
       </div>`;
@@ -626,6 +672,7 @@ function renderCompleteView() {
   var trainingBadge = auditState.isTraining ? '<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-sm font-bold text-amber-700 inline-block mb-4">Training Mode &mdash; exported as TRAINING</div>' : '';
   main.innerHTML = `
     <div class="max-w-lg mx-auto text-center py-8">
+      ${renderCrumbs()}
       <div class="w-20 h-20 bg-birds-light rounded-full flex items-center justify-center mx-auto mb-4">
         <svg class="w-10 h-10" style="color:#5B8C7A" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
       </div>
@@ -730,6 +777,26 @@ window.auditSetAction = function(sid, cid, qid, field, val) {
     q.action.closedOn = new Date().toISOString().slice(0, 10);
     renderAuditPerform();
   }
+};
+
+window.toggleActionStatus = function(qid) {
+  var found = null;
+  auditSectorKeys().forEach(function(sid) {
+    auditState.sectors[sid].categories.forEach(function(cat) {
+      cat.questions.forEach(function(q) {
+        if (q.id === qid && q.action) found = q;
+      });
+    });
+  });
+  if (!found || !found.action) return;
+  var newStatus = found.action.status === 'Closed' ? 'Open' : 'Closed';
+  found.action.status = newStatus;
+  if (newStatus === 'Closed' && !found.action.closedOn) {
+    found.action.closedOn = new Date().toISOString().slice(0, 10);
+  } else if (newStatus === 'Open') {
+    found.action.closedOn = '';
+  }
+  renderAuditPerform();
 };
 
 window.completeAudit = function() {
