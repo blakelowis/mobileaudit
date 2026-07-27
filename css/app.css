@@ -54,9 +54,10 @@
 }
 
 :root {
-  --birds-green:       #00A88E;
-  --birds-green-hover: #009478;
-  --birds-dark:        #0f172a;
+  --birds-green:       #5B8C7A;
+  --birds-green-light: #B1D1BF;
+  --birds-green-hover: #4D7A69;
+  --birds-dark:        #4A4B53;
   --birds-radius:      16px;
   --birds-radius-sm:   12px;
   --birds-radius-xs:   8px;
@@ -71,6 +72,7 @@
 
 .birds-green { color: var(--birds-green) !important; }
 .bg-birds { background-color: var(--birds-green) !important; }
+.bg-birds-light { background-color: var(--birds-green-light) !important; }
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -128,7 +130,7 @@ button:active, .active\:shadow-md:active {
 
 /* ── Action review highlight animation ─────────────────────── */
 @keyframes ap-highlight-fade {
-  0%   { background-color: rgba(0,168,142,0.15); box-shadow: 0 0 0 2px rgba(0,168,142,0.3); }
+  0%   { background-color: rgba(91,140,122,0.15); box-shadow: 0 0 0 2px rgba(91,140,122,0.3); }
   100% { background-color: transparent; box-shadow: none; }
 }
 .ap-highlight {
